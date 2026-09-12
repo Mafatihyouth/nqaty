@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>برنامج نقاطي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Cairo:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#16a34a;
+    --blue:#2563eb;
+    --bg:#ffffff;
+    --border:#e5e7eb;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family:'Tajawal','Tahoma','Segoe UI',sans-serif;
+    color:var(--blue);
+    padding:20px;
+    position:relative;
+    overflow-x:hidden;
+    min-height:100vh;
+  }
+
+  body::before, body::after{
+    content:"";
+    position:fixed;
+    top:0;
+    width:340px;
+    height:100vh;
+    pointer-events:none;
+    z-index:0;
+    background-repeat:no-repeat;
+  }
+  body::before{
+    right:-140px;
+    background:
+      radial-gradient(circle at 30% 15%, rgba(22,163,74,0.16) 0%, rgba(22,163,74,0) 60%),
+      radial-gradient(circle at 65% 55%, rgba(37,99,235,0.14) 0%, rgba(37,99,235,0) 60%),
+      radial-gradient(circle at 30% 90%, rgba(22,163,74,0.12) 0%, rgba(22,163,74,0) 55%);
+  }
+  body::after{
+    left:-140px;
+    background:
+      radial-gradient(circle at 70% 20%, rgba(37,99,235,0.16) 0%, rgba(37,99,235,0) 60%),
+      radial-gradient(circle at 35% 60%, rgba(22,163,74,0.14) 0%, rgba(22,163,74,0) 60%),
+      radial-gradient(circle at 70% 95%, rgba(37,99,235,0.12) 0%, rgba(37,99,235,0) 55%);
+  }
+  .side-deco{
+    position:fixed; top:0; height:100vh; width:120px;
+    pointer-events:none; z-index:0; opacity:0.6;
+  }
+  .side-deco.right{right:0;}
+  .side-deco.left{left:0;}
+
+  .container{max-width:700px;margin:0 auto;position:relative;z-index:1;}
+
+  .title-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4px;}
+  .title-icon{width:34px;height:34px;flex-shrink:0;}
+
+  h1{
+    text-align:center;
+    background:linear-gradient(90deg, var(--green), var(--blue));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    font-family:'Cairo','Tajawal',sans-serif;
+    font-weight:800; font-size:32px; margin:0; letter-spacing:0.5px;
+  }
+  .subtitle{text-align:center;color:var(--blue);margin-bottom:6px;font-size:14px;font-weight:500;}
+  .subtitle::before, .subtitle::after{
+    content:""; display:inline-block; width:28px; height:2px;
+    background:linear-gradient(90deg, var(--green), var(--blue));
+    vertical-align:middle; margin:0 8px; border-radius:2px;
+  }
+  .level-indicator{
+    text-align:center;
+    margin-bottom:22px;
+    font-size:13px;
+  }
+  .level-indicator .badge{
+    background:linear-gradient(90deg, var(--green), var(--blue));
+    color:#fff;
+    padding:4px 14px;
+    border-radius:999px;
+    font-weight:700;
+    font-family:'Cairo',sans-serif;
+  }
+  .level-indicator .change-level{
+    background:none;border:none;color:#94a3b8;font-size:12.5px;
+    text-decoration:underline;text-underline-offset:3px;cursor:pointer;
+    font-family:'Tajawal',sans-serif;margin-inline-start:8px;
+  }
+  .level-indicator .change-level:hover{color:var(--blue);}
+
+  table{
+    width:100%;border-collapse:collapse;background:#fff;
+    box-shadow:0 4px 20px rgba(37,99,235,0.08);border-radius:14px;
+    overflow:hidden;border:1px solid var(--border);
+  }
+  th{
+    background:linear-gradient(90deg, var(--green), var(--blue));color:#fff;
+    padding:14px 12px;font-size:15px;font-family:'Cairo',sans-serif;
+    font-weight:700;letter-spacing:0.3px;
+  }
+  td{padding:13px 12px;text-align:center;border-bottom:1px solid var(--border);color:var(--blue);font-size:15px;font-weight:500;}
+  tbody tr{transition:background 0.15s ease;}
+  tbody tr:hover{background:rgba(22,163,74,0.05);}
+  .rank{font-weight:bold;color:var(--green);}
+  .rank-1{color:#eab308;}
+  .rank-2{color:#94a3b8;}
+  .rank-3{color:#b45309;}
+  .empty{text-align:center;color:#94a3b8;padding:20px;}
+
+  .help-btn{
+    position:fixed;top:16px;left:16px;width:38px;height:38px;border-radius:50%;
+    border:1.5px solid var(--blue);background:#fff;color:var(--blue);
+    font-size:18px;font-weight:800;font-family:'Cairo',sans-serif;cursor:pointer;
+    z-index:30;box-shadow:0 2px 10px rgba(37,99,235,0.15);transition:all 0.2s ease;
+  }
+  .help-btn:hover{background:var(--blue);color:#fff;}
+
+  .footer-admin{
+    max-width:700px;margin:70px auto 0;padding-top:18px;
+    border-top:1px dashed var(--border);text-align:center;position:relative;z-index:1;
+  }
+  .admin-link{
+    background:none;border:none;color:#94a3b8;font-size:12.5px;
+    font-family:'Tajawal',sans-serif;cursor:pointer;padding:4px 8px;
+    text-decoration:underline;text-underline-offset:3px;
+  }
+  .admin-link:hover{color:var(--blue);}
+
+  .admin-login{
+    display:none;max-width:320px;margin:12px auto 0;padding:14px;
+    border:1px solid var(--border);border-radius:14px;background:#fafcff;
+  }
+  .admin-login.open{display:block;}
+  .admin-login .form-row{margin-bottom:0;}
+
+  .admin-panel{
+    margin:16px auto 0;max-width:500px;padding:18px;border:1px solid var(--border);
+    border-radius:14px;display:none;background:#fafcff;
+    box-shadow:0 4px 20px rgba(22,163,74,0.06);text-align:right;
+  }
+  .admin-panel.open{display:block;}
+  .admin-panel h3{color:var(--green);margin-top:0;font-family:'Cairo',sans-serif;font-weight:700;}
+  .admin-panel .scope-note{font-size:12px;color:#94a3b8;margin-top:-6px;margin-bottom:12px;}
+
+  .form-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  input{
+    flex:1;min-width:100px;padding:9px 12px;border:1px solid var(--border);
+    border-radius:8px;color:var(--blue);font-family:inherit;font-weight:500;
+    outline:none;transition:border-color 0.2s ease;
+  }
+  input:focus{border-color:var(--green);}
+
+  button.action{
+    background:linear-gradient(90deg, var(--green), var(--blue));color:#fff;border:none;
+    padding:9px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;
+    font-family:'Tajawal',sans-serif;transition:opacity 0.2s ease;
+  }
+  button.action:hover{opacity:0.85;}
+
+  button.danger{
+    background:#dc2626;color:#fff;border:none;padding:6px 12px;border-radius:8px;
+    cursor:pointer;font-size:12px;font-weight:600;font-family:'Tajawal',sans-serif;
+    transition:opacity 0.2s ease;
+  }
+  button.danger:hover{opacity:0.85;}
+  button.danger.confirming{background:#991b1b;}
+
+  button.edit{
+    background:var(--blue);color:#fff;border:none;padding:6px 12px;border-radius:8px;
+    cursor:pointer;font-size:12px;font-weight:600;font-family:'Tajawal',sans-serif;
+    margin-inline-end:6px;transition:opacity 0.2s ease;
+  }
+  button.edit:hover{opacity:0.85;}
+
+  button.save{
+    background:var(--green);color:#fff;border:none;padding:6px 12px;border-radius:8px;
+    cursor:pointer;font-size:12px;font-weight:600;font-family:'Tajawal',sans-serif;
+  }
+  button.cancel{
+    background:#94a3b8;color:#fff;border:none;padding:6px 12px;border-radius:8px;
+    cursor:pointer;font-size:12px;font-weight:600;font-family:'Tajawal',sans-serif;
+  }
+
+  .row-actions{display:flex;gap:6px;justify-content:center;}
+  .row-edit{display:flex;gap:6px;flex:1;flex-wrap:wrap;align-items:center;}
+  .row-edit input{padding:6px 8px;font-size:13px;}
+  .row-edit input.edit-name{flex:2;min-width:100px;}
+  .row-edit input.edit-points{flex:1;min-width:70px;}
+
+  .student-list-admin{margin-top:14px;border-top:1px solid var(--border);padding-top:10px;}
+  .admin-row{
+    display:flex;align-items:center;justify-content:space-between;padding:6px 0;
+    border-bottom:1px solid var(--border);font-size:14px;gap:8px;flex-wrap:wrap;
+  }
+  .admin-row span{flex:1;}
+
+  .status{text-align:center;font-size:13px;margin-top:8px;color:var(--green);min-height:16px;}
+
+  /* نافذة عامة (بنود / اختيار مرحلة) */
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);
+    z-index:60;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-card{
+    background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:85vh;
+    overflow-y:auto;padding:24px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,0.2);
+  }
+  .modal-card h3{
+    font-family:'Cairo',sans-serif;
+    background:linear-gradient(90deg, var(--green), var(--blue));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    font-size:20px;margin-top:0;text-align:center;
+  }
+  .modal-close{
+    position:absolute;top:14px;left:14px;background:none;border:1px solid var(--border);
+    border-radius:50%;width:30px;height:30px;cursor:pointer;color:var(--blue);font-size:14px;
+  }
+  .modal-close:hover{background:#f1f5f9;}
+
+  #termsList{margin-top:10px;}
+  .term-item{
+    display:flex;align-items:flex-start;gap:8px;padding:10px 0;
+    border-bottom:1px solid var(--border);font-size:14px;line-height:1.7;
+  }
+  .term-item .term-num{color:var(--green);font-weight:800;font-family:'Cairo',sans-serif;flex-shrink:0;}
+  .term-item .term-text{flex:1;}
+  .term-item .row-actions{flex-shrink:0;}
+  #termsAdminControls{margin-top:14px;border-top:1px dashed var(--border);padding-top:12px;}
+
+  /* نافذة اختيار المرحلة */
+  #levelOverlay .modal-card{text-align:center;}
+  #levelOverlay .modal-close{display:none;}
+  .level-sub{color:#64748b;font-size:13.5px;margin-bottom:20px;}
+  .level-options{display:flex;flex-direction:column;gap:12px;}
+  .level-btn{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:16px;border-radius:12px;border:1.5px solid var(--border);
+    background:#fff;cursor:pointer;font-family:'Cairo',sans-serif;
+    font-size:17px;font-weight:700;color:var(--blue);transition:all 0.2s ease;
+  }
+  .level-btn:hover{
+    border-color:var(--green);
+    background:linear-gradient(90deg, rgba(22,163,74,0.06), rgba(37,99,235,0.06));
+  }
+  .level-btn .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(90deg, var(--green), var(--blue));}
+</style>
+</head>
+<body>
+
+<svg class="side-deco right" viewBox="0 0 120 800" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <g fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round">
+    <circle cx="30" cy="90" r="22" opacity="0.35"/>
+    <circle cx="70" cy="150" r="10" opacity="0.3" stroke="#2563eb"/>
+    <path d="M15 260 Q45 300 15 340" opacity="0.35"/>
+    <rect x="55" y="420" width="20" height="20" rx="4" transform="rotate(45 65 430)" opacity="0.3" stroke="#2563eb"/>
+    <circle cx="25" cy="540" r="16" opacity="0.3"/>
+    <path d="M60 620 Q90 660 60 700" opacity="0.3" stroke="#2563eb"/>
+  </g>
+  <g fill="#16a34a" opacity="0.15">
+    <circle cx="95" cy="200" r="4"/><circle cx="105" cy="330" r="3"/>
+    <circle cx="90" cy="480" r="5"/><circle cx="100" cy="660" r="3"/>
+  </g>
+</svg>
+<svg class="side-deco left" viewBox="0 0 120 800" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <g fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round">
+    <circle cx="90" cy="130" r="20" opacity="0.35"/>
+    <circle cx="50" cy="210" r="9" opacity="0.3" stroke="#16a34a"/>
+    <path d="M105 300 Q75 340 105 380" opacity="0.35"/>
+    <rect x="45" y="460" width="18" height="18" rx="4" transform="rotate(45 54 469)" opacity="0.3" stroke="#16a34a"/>
+    <circle cx="95" cy="560" r="14" opacity="0.3"/>
+    <path d="M60 640 Q30 680 60 720" opacity="0.3" stroke="#16a34a"/>
+  </g>
+  <g fill="#2563eb" opacity="0.15">
+    <circle cx="20" cy="230" r="4"/><circle cx="12" cy="360" r="3"/>
+    <circle cx="25" cy="520" r="5"/><circle cx="15" cy="690" r="3"/>
+  </g>
+</svg>
+
+<button class="help-btn" id="helpBtn" title="البنود والشروط">؟</button>
+
+<div class="container">
+  <div class="title-wrap">
+    <svg class="title-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="iconGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#16a34a"/>
+          <stop offset="1" stop-color="#2563eb"/>
+        </linearGradient>
+      </defs>
+      <path d="M12 2 L14.5 9 L22 9.5 L16 14.5 L18 22 L12 17.5 L6 22 L8 14.5 L2 9.5 L9.5 9 Z" fill="url(#iconGrad)"/>
+    </svg>
+    <h1>برنامج نقاطي</h1>
+  </div>
+  <div class="subtitle">لوحة صدارة الطلاب</div>
+  <div class="level-indicator">
+    <span class="badge" id="levelBadge">—</span>
+    <button class="change-level" id="changeLevelBtn">تغيير المرحلة</button>
+  </div>
+
+  <table>
+    <thead><tr><th>الترتيب</th><th>اسم الطالب</th><th>النقاط</th></tr></thead>
+    <tbody id="leaderboard-body"></tbody>
+  </table>
+</div>
+
+<div class="footer-admin">
+  <button class="admin-link" id="adminToggleBtn">دخول المشرفين</button>
+
+  <div class="admin-login" id="adminLogin">
+    <div class="form-row">
+      <input type="password" id="adminPwd" placeholder="كلمة مرور المشرف">
+      <button class="action" id="loginBtn">دخول</button>
+    </div>
+    <div class="status" id="loginMsg"></div>
+  </div>
+
+  <div class="admin-panel" id="adminPanel">
+    <h3>لوحة تحكم المشرفين</h3>
+    <div class="scope-note" id="adminScopeNote"></div>
+    <div class="form-row">
+      <input type="text" id="newName" placeholder="اسم الطالب">
+      <input type="number" id="newPoints" placeholder="النقاط" value="0">
+      <button class="action" id="addBtn">إضافة طالب</button>
+    </div>
+    <div class="student-list-admin" id="adminList"></div>
+    <div class="status" id="statusMsg"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="termsOverlay">
+  <div class="modal-card">
+    <button class="modal-close" id="closeTermsBtn">✕</button>
+    <h3>البنود والشروط</h3>
+    <div id="termsList"></div>
+    <div id="termsAdminControls" style="display:none;">
+      <div class="form-row">
+        <input type="text" id="newTerm" placeholder="أضف بندًا جديدًا">
+        <button class="action" id="addTermBtn">إضافة بند</button>
+      </div>
+      <div class="status" id="termsStatusMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="levelOverlay">
+  <div class="modal-card">
+    <button class="modal-close" id="closeLevelBtn">✕</button>
+    <h3>اختر المرحلة الدراسية</h3>
+    <div class="level-sub">لكل مرحلة لوحة صدارة وبنود وشروط خاصة بها</div>
+    <div class="level-options">
+      <button class="level-btn" data-level="high"><span class="dot"></span> ثانوي</button>
+      <button class="level-btn" data-level="middle"><span class="dot"></span> متوسط</button>
+      <button class="level-btn" data-level="primary"><span class="dot"></span> ابتدائي</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ADMIN_PASSWORD = "xoE17.koma";
+const LEVELS = {
+  high:   { label: "ثانوي" },
+  middle: { label: "متوسط" },
+  primary:{ label: "ابتدائي" }
+};
+
+let currentLevel = null;
+let students = [];
+let terms = [];
+let isAdmin = false;
+
+/* طبقة تخزين موحّدة: تتصل بدالة API على الخادم (api/kv.js) المتصلة بقاعدة
+   بيانات Upstash Redis الحقيقية — بهذا تكون البيانات مشتركة فعليًا بين كل
+   زوار الموقع من أي جهاز، بدل أي تخزين محلي في المتصفح. */
+const hasCloudStorage = true;
+
+async function storageGet(key){
+  try{
+    const r = await fetch(`/api/kv?key=${encodeURIComponent(key)}`);
+    if(!r.ok) return null;
+    const data = await r.json();
+    return (data && data.value !== null && data.value !== undefined) ? { key, value: data.value } : null;
+  }catch(e){ return null; }
+}
+
+async function storageSet(key, value){
+  try{
+    const r = await fetch('/api/kv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value })
+    });
+    if(!r.ok) return null;
+    const data = await r.json();
+    return data.ok ? { key, value } : null;
+  }catch(e){ return null; }
+}
+
+function studentsKey(){ return `mynuqati-students-${currentLevel}`; }
+function termsKey(){ return `mynuqati-terms-${currentLevel}`; }
+
+/* ---------- تخزين الطلاب ---------- */
+async function loadStudents(){
+  const res = await storageGet(studentsKey());
+  students = res ? JSON.parse(res.value) : [];
+  renderLeaderboard();
+  if(isAdmin) renderAdminList();
+}
+
+async function saveStudents(){
+  const result = await storageSet(studentsKey(), JSON.stringify(students));
+  if(!result){ showStatus("تعذّر الحفظ، حاول مرة أخرى", true); return false; }
+  return true;
+}
+
+function renderLeaderboard(){
+  const body = document.getElementById('leaderboard-body');
+  body.innerHTML = "";
+  if(students.length === 0){
+    body.innerHTML = '<tr><td colspan="3" class="empty">لا يوجد طلاب بعد</td></tr>';
+    return;
+  }
+  const sorted = [...students].sort((a,b) => b.points - a.points);
+  sorted.forEach((s, i) => {
+    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="rank ${rankClass}">${i+1}</td><td>${escapeHtml(s.name)}</td><td>${s.points}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderAdminList(){
+  const storageNote = hasCloudStorage ? "" : " — ملاحظة: الحفظ حاليًا على هذا المتصفح فقط";
+  document.getElementById('adminScopeNote').textContent = `البيانات الحالية لمرحلة: ${LEVELS[currentLevel].label}${storageNote}`;
+  const list = document.getElementById('adminList');
+  list.innerHTML = "";
+  if(students.length === 0){
+    list.innerHTML = '<div class="empty">لا يوجد طلاب بعد</div>';
+    return;
+  }
+  students.forEach((s, idx) => {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.dataset.idx = idx;
+    row.innerHTML = `
+      <span class="view-mode">${escapeHtml(s.name)} — ${s.points} نقطة</span>
+      <div class="row-actions view-mode">
+        <button class="edit" data-idx="${idx}" data-action="edit">تعديل</button>
+        <button class="danger" data-idx="${idx}" data-action="delete">حذف</button>
+      </div>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('button[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => startEditRow(parseInt(btn.dataset.idx)));
+  });
+  list.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', () => handleDeleteClick(btn, parseInt(btn.dataset.idx)));
+  });
+}
+
+function handleDeleteClick(btn, idx){
+  if(btn.dataset.confirm === "1"){ deleteStudent(idx); return; }
+  btn.dataset.confirm = "1";
+  btn.textContent = "تأكيد الحذف؟";
+  btn.classList.add('confirming');
+  setTimeout(() => {
+    if(btn.isConnected){ btn.dataset.confirm = "0"; btn.textContent = "حذف"; btn.classList.remove('confirming'); }
+  }, 3000);
+}
+
+function startEditRow(idx){
+  const row = document.querySelector(`#adminList .admin-row[data-idx="${idx}"]`);
+  if(!row) return;
+  const s = students[idx];
+  row.innerHTML = `
+    <div class="row-edit">
+      <input type="text" class="edit-name" value="${escapeHtml(s.name)}">
+      <input type="number" class="edit-points" value="${s.points}">
+      <button class="save" data-action="save">حفظ</button>
+      <button class="cancel" data-action="cancel">إلغاء</button>
+    </div>`;
+  row.querySelector('[data-action="save"]').addEventListener('click', () => saveEditRow(idx, row));
+  row.querySelector('[data-action="cancel"]').addEventListener('click', () => renderAdminList());
+}
+
+async function saveEditRow(idx, row){
+  const newName = row.querySelector('.edit-name').value.trim();
+  const newPoints = parseInt(row.querySelector('.edit-points').value);
+  if(!newName || isNaN(newPoints)){ showStatus("بيانات غير صحيحة", true); return; }
+  students[idx] = {name: newName, points: newPoints};
+  const ok = await saveStudents();
+  renderLeaderboard(); renderAdminList();
+  if(ok) showStatus("تم تحديث البيانات بنجاح");
+}
+
+async function addStudent(){
+  const nameInput = document.getElementById('newName');
+  const pointsInput = document.getElementById('newPoints');
+  const name = nameInput.value.trim();
+  const points = parseInt(pointsInput.value) || 0;
+  if(!name){ showStatus("الرجاء إدخال اسم الطالب", true); return; }
+  students.push({name, points});
+  const ok = await saveStudents();
+  if(ok){ nameInput.value = ""; pointsInput.value = "0"; }
+  renderLeaderboard(); renderAdminList();
+  if(ok) showStatus("تمت إضافة الطالب بنجاح");
+}
+
+async function deleteStudent(idx){
+  students.splice(idx, 1);
+  const ok = await saveStudents();
+  renderLeaderboard(); renderAdminList();
+  if(ok) showStatus("تم حذف الطالب");
+}
+
+/* ---------- البنود والشروط ---------- */
+async function loadTerms(){
+  const res = await storageGet(termsKey());
+  terms = res ? JSON.parse(res.value) : [];
+}
+
+async function saveTerms(){
+  const result = await storageSet(termsKey(), JSON.stringify(terms));
+  if(!result){ showTermsStatus("تعذّر الحفظ، حاول مرة أخرى", true); return false; }
+  return true;
+}
+
+function renderTermsList(){
+  const list = document.getElementById('termsList');
+  list.innerHTML = "";
+  if(terms.length === 0){
+    list.innerHTML = '<div class="empty">لا توجد بنود مضافة بعد</div>';
+  }else{
+    terms.forEach((t, idx) => {
+      const row = document.createElement('div');
+      row.className = 'term-item';
+      row.dataset.idx = idx;
+      if(isAdmin){
+        row.innerHTML = `
+          <span class="term-num">${idx+1}.</span>
+          <span class="term-text">${escapeHtml(t)}</span>
+          <div class="row-actions">
+            <button class="edit" data-idx="${idx}" data-action="edit">تعديل</button>
+            <button class="danger" data-idx="${idx}" data-action="delete">حذف</button>
+          </div>`;
+      }else{
+        row.innerHTML = `<span class="term-num">${idx+1}.</span><span class="term-text">${escapeHtml(t)}</span>`;
+      }
+      list.appendChild(row);
+    });
+    if(isAdmin){
+      list.querySelectorAll('button[data-action="edit"]').forEach(btn => {
+        btn.addEventListener('click', () => startEditTerm(parseInt(btn.dataset.idx)));
+      });
+      list.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+        btn.addEventListener('click', () => handleDeleteTermClick(btn, parseInt(btn.dataset.idx)));
+      });
+    }
+  }
+  document.getElementById('termsAdminControls').style.display = isAdmin ? 'block' : 'none';
+}
+
+function handleDeleteTermClick(btn, idx){
+  if(btn.dataset.confirm === "1"){ deleteTerm(idx); return; }
+  btn.dataset.confirm = "1";
+  btn.textContent = "تأكيد الحذف؟";
+  btn.classList.add('confirming');
+  setTimeout(() => {
+    if(btn.isConnected){ btn.dataset.confirm = "0"; btn.textContent = "حذف"; btn.classList.remove('confirming'); }
+  }, 3000);
+}
+
+function startEditTerm(idx){
+  const row = document.querySelector(`#termsList .term-item[data-idx="${idx}"]`);
+  if(!row) return;
+  row.innerHTML = `
+    <div class="row-edit">
+      <input type="text" class="edit-term" value="${escapeHtml(terms[idx])}">
+      <button class="save" data-action="save">حفظ</button>
+      <button class="cancel" data-action="cancel">إلغاء</button>
+    </div>`;
+  row.querySelector('[data-action="save"]').addEventListener('click', () => saveEditTerm(idx, row));
+  row.querySelector('[data-action="cancel"]').addEventListener('click', () => renderTermsList());
+}
+
+async function saveEditTerm(idx, row){
+  const newText = row.querySelector('.edit-term').value.trim();
+  if(!newText){ showTermsStatus("الرجاء إدخال نص البند", true); return; }
+  terms[idx] = newText;
+  const ok = await saveTerms();
+  renderTermsList();
+  if(ok) showTermsStatus("تم تحديث البند بنجاح");
+}
+
+async function addTerm(){
+  const input = document.getElementById('newTerm');
+  const text = input.value.trim();
+  if(!text){ showTermsStatus("الرجاء إدخال نص البند", true); return; }
+  terms.push(text);
+  const ok = await saveTerms();
+  if(ok) input.value = "";
+  renderTermsList();
+  if(ok) showTermsStatus("تمت إضافة البند بنجاح");
+}
+
+async function deleteTerm(idx){
+  terms.splice(idx, 1);
+  const ok = await saveTerms();
+  renderTermsList();
+  if(ok) showTermsStatus("تم حذف البند");
+}
+
+function showTermsStatus(msg, isError){
+  const el = document.getElementById('termsStatusMsg');
+  el.textContent = msg;
+  el.style.color = isError ? '#dc2626' : 'var(--green)';
+  setTimeout(() => { el.textContent = ""; }, 3000);
+}
+
+/* ---------- أدوات مشتركة ---------- */
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+function showStatus(msg, isError){
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.style.color = isError ? '#dc2626' : 'var(--green)';
+  setTimeout(() => { el.textContent = ""; }, 3000);
+}
+function showLoginMsg(msg, isError){
+  const el = document.getElementById('loginMsg');
+  el.textContent = msg;
+  el.style.color = isError ? '#dc2626' : 'var(--green)';
+}
+
+/* ---------- دخول المشرفين ---------- */
+const adminToggleBtn = document.getElementById('adminToggleBtn');
+const adminLoginBox = document.getElementById('adminLogin');
+const adminPanel = document.getElementById('adminPanel');
+const adminPwdInput = document.getElementById('adminPwd');
+
+adminToggleBtn.addEventListener('click', () => {
+  if(isAdmin){ adminPanel.classList.toggle('open'); return; }
+  adminLoginBox.classList.toggle('open');
+  if(adminLoginBox.classList.contains('open')) adminPwdInput.focus();
+});
+
+function attemptLogin(){
+  const pwd = adminPwdInput.value;
+  if(pwd === ADMIN_PASSWORD){
+    isAdmin = true;
+    adminLoginBox.classList.remove('open');
+    adminPanel.classList.add('open');
+    adminToggleBtn.textContent = "لوحة المشرفين مفتوحة";
+    adminPwdInput.value = "";
+    showLoginMsg("");
+    renderAdminList();
+    if(document.getElementById('termsOverlay').classList.contains('open')) renderTermsList();
+  }else{
+    showLoginMsg("كلمة المرور غير صحيحة", true);
+  }
+}
+document.getElementById('loginBtn').addEventListener('click', attemptLogin);
+adminPwdInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') attemptLogin(); });
+document.getElementById('addBtn').addEventListener('click', addStudent);
+
+/* ---------- نافذة البنود والشروط ---------- */
+const helpBtn = document.getElementById('helpBtn');
+const termsOverlay = document.getElementById('termsOverlay');
+document.getElementById('closeTermsBtn').addEventListener('click', () => termsOverlay.classList.remove('open'));
+termsOverlay.addEventListener('click', (e) => { if(e.target === termsOverlay) termsOverlay.classList.remove('open'); });
+document.getElementById('addTermBtn').addEventListener('click', addTerm);
+
+helpBtn.addEventListener('click', async () => {
+  if(!currentLevel) return;
+  await loadTerms();
+  renderTermsList();
+  termsOverlay.classList.add('open');
+});
+
+/* ---------- اختيار المرحلة ---------- */
+const levelOverlay = document.getElementById('levelOverlay');
+const levelBadge = document.getElementById('levelBadge');
+
+async function selectLevel(level){
+  currentLevel = level;
+  levelBadge.textContent = LEVELS[level].label;
+  levelOverlay.classList.remove('open');
+  await loadStudents();
+  terms = [];
+}
+
+document.querySelectorAll('.level-btn').forEach(btn => {
+  btn.addEventListener('click', () => selectLevel(btn.dataset.level));
+});
+
+document.getElementById('changeLevelBtn').addEventListener('click', () => {
+  levelOverlay.classList.add('open');
+});
+document.getElementById('closeLevelBtn').addEventListener('click', () => {
+  if(currentLevel) levelOverlay.classList.remove('open');
+});
+
+/* عرض نافذة اختيار المرحلة فور دخول الموقع */
+levelOverlay.classList.add('open');
+</script>
+</body>
+</html>
