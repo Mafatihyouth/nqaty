@@ -46,10 +46,18 @@ h1,h2,h3,h4,p{margin:0}
 svg{display:block;flex:none}
 
 /* ---------- splash (always white + green, as requested) ---------- */
-#splash{position:fixed;inset:0;background:#fff;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:32px 24px;text-align:center}
+#splash{position:fixed;inset:0;background:#fff;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:32px 24px;text-align:center}
 #splash h1{font-family:var(--font-display);font-weight:700;color:#1B7A4B;font-size:clamp(38px,11vw,60px);line-height:1.35;text-wrap:balance}
 #splash button{background:#1B7A4B;color:#fff;border:0;border-radius:14px;min-width:180px;height:56px;font-size:22px;font-weight:800;box-shadow:0 8px 20px rgba(27,122,75,.28)}
 #splash button:active{transform:scale(.98)}
+#splash #sup-in{background:transparent;color:#1B7A4B;box-shadow:none;height:44px;font-size:17px;min-width:0;margin-top:-12px;text-decoration:underline}
+#splash #sup-in[hidden]{display:none}
+.su-row{display:flex;align-items:center;gap:6px;padding:9px 0;border-top:1px solid var(--line)}.su-n{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.su-b{flex:none;min-width:56px;height:38px;padding:0 10px;border-radius:10px;border:1.5px solid var(--line);background:var(--card,#fff);color:var(--ink);font-weight:700;font-size:15px}
+.su-b.p.on{background:#1B7A4B;border-color:#1B7A4B;color:#fff}.su-b.a.on{background:#B3261E;border-color:#B3261E;color:#fff}
+.su-no{color:var(--muted);font-size:12px}
+textarea.inp{line-height:1.7;resize:vertical}
+.upd{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:96;font-weight:700;box-shadow:var(--shadow)}
 
 /* ---------- shell ---------- */
 .shell{max-width:680px;margin:0 auto;min-height:100%;padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
@@ -331,6 +339,7 @@ main{padding-top:16px;display:flex;flex-direction:column;gap:14px}
 <div id="splash">
   <h1>حلقات أبوبكر الصديق</h1>
   <button id="start" type="button">ابدأ</button>
+  <button id="sup-in" type="button">دخول المشرف</button>
 </div>
 
 <div class="shell" id="app" hidden></div>
@@ -425,10 +434,12 @@ function fromDocs(docs){
 function setSync(s){UI.sync=s;const el=$('#sync');if(el){el.className='sync '+s;el.lastChild.textContent=SYNC_TXT[s]}}
 const SYNC_TXT={ok:'محفوظ',saving:'جارٍ الحفظ…',local:'محفوظ على هذا الجهاز',error:'تعذّر الحفظ السحابي',nostore:'المتصفح يمنع الحفظ'};
 function persist(){
+  if(SUP)return;
   S.rev=Date.now();
   try{localStorage.setItem(LS,JSON.stringify(S));LSOK=true}catch(e){LSOK=false}
   if(col){setSync('saving');clearTimeout(timer);timer=setTimeout(flush,600)}
   else setSync(LSOK?'local':'nostore');
+  hqMark();
 }
 async function flush(){
   if(!col)return;
@@ -634,7 +645,7 @@ function halaqatView(){
         <button class="hcard-go" type="button" data-act="open-halaqa" data-id="${h.id}"><span>فتح الحلقة</span><span style="transform:scaleX(-1);display:grid">${I.back}</span></button>
       </article>`).join('')
     :`<div class="empty"><h3>لم تُضف أي حلقة بعد</h3><p>أضف حلقتك الأولى بالاسم والمرحلة، وستبقى محفوظة في كل مرة تفتح فيها التطبيق.</p><button class="btn pri" type="button" data-act="add-halaqa">${I.plus}إضافة حلقة</button></div>`}
-    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding-top:6px"><button class="btn sm" type="button" data-act="backup">نسخة احتياطية واستعادة</button>${canInstall()?'<button class="btn soft sm" type="button" data-act="install">تثبيت التطبيق</button>':''}</div>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding-top:6px"><button class="btn sm" type="button" data-act="backup">نسخة احتياطية واستعادة</button>${QCF_ON?`<button class="btn soft sm" type="button" data-act="hq">${HQ&&HQ.code&&!HQ.bad?"الربط مع الإدارة ✓":"الربط مع الإدارة"}</button><button class="btn sm" type="button" data-act="upd">تحديث التطبيق</button>`:''}${canInstall()?'<button class="btn soft sm" type="button" data-act="install">تثبيت التطبيق</button>':''}</div>
   </main>`;
 }
 
@@ -735,7 +746,7 @@ function halaqaView(){
 
 function render(opts={}){
   const app=$('#app'),y=window.scrollY,old=$('#strip'),sl=old?old.scrollLeft:null;
-  app.innerHTML=UI.screen==='halaqat'?halaqatView():halaqaView();
+  app.innerHTML=UI.screen==='sup'?supView():UI.screen==='halaqat'?halaqatView():halaqaView();
   if(UI.screen==='halaqa'){
     const strip=$('#strip',app),s=$('.day.cur',app);
     if(opts.center&&s)s.scrollIntoView({block:'nearest',inline:'center'});
@@ -1636,7 +1647,7 @@ function pointsView(hid){
       <div class="card"><b>${lab}</b><div class="note" style="margin-top:4px">مجموع نقاط الحلقة: ${ptsTxt(sum)}</div>
         <div class="note" style="margin-top:4px">الحفظ والمراجعة: نقطة لكل تسميع (مراجعة الأسبوع نقطتان) · الشماغ نقطة · المبادرة نقطة · حضور الخميس 3 نقاط.</div></div>
       ${PS.p==='day'?`<div class="daypick"><button class="btn sm" type="button" data-dd="-1" aria-label="اليوم السابق">${I.back}</button><input type="date" id="pt-d" class="inp" value="${PS.d}"><button class="btn sm" type="button" data-dd="1" aria-label="اليوم التالي"><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>`:''}
-      <button class="btn pri block" type="button" data-site>${I.up}${PS.p==='day'?'رفع نقاط هذا اليوم إلى الموقع':'رفع النقاط إلى الموقع'}</button>
+      ${SUP?'':`<button class="btn pri block" type="button" data-site>${I.up}${PS.p==='day'?'رفع نقاط هذا اليوم إلى الموقع':'رفع النقاط إلى الموقع'}</button>`}
       ${rows.length?rows.map(r=>`<article class="pt-row">
         <div class="pt-top"><span class="pt-rk${r.rk<=3&&r.tot>0?' r'+r.rk:''}">${r.rk}</span><b>${esc(r.st.name)}</b><span class="pt-tot">${r.tot}<small>نقطة</small></span></div>
         <div class="pt-by">${Object.keys(PTS).filter(k=>r.by[k]).map(k=>`<span>${PT_LAB[k]} <b>${r.by[k]}</b></span>`).join('')||'<span>لا نقاط بعد</span>'}</div>
@@ -1654,6 +1665,242 @@ function pointsView(hid){
   draw();
 }
 
+/* ================= cloud: teacher link + supervisor ================= */
+const HQ_LS='halaqat-hq-v1',SUP_LS='halaqat-sup-v1';
+const lsGet=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let HQ=lsGet(HQ_LS,null);               // {code,name,at,dirty,bad}  (المعلم)
+let SUP=false;                          // وضع المشرف
+let SU={tab:'att',date:today(),data:null,marks:{},pw:'',err:''};
+async function hq(body){
+  let r;
+  try{r=await fetch('/api/hq',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})}
+  catch(e){throw new Error('لا يوجد اتصال بالإنترنت.')}
+  let j=null;try{j=await r.json()}catch(e){}
+  if(!r.ok||!j||j.error)throw Object.assign(new Error((j&&j.error)||'تعذّر الاتصال بالخادم.'),{status:r.status});
+  return j;
+}
+const ago=ms=>{if(!ms)return'لم يزامن بعد';const m=Math.round((Date.now()-ms)/60000);return m<1?'الآن':m<60?'قبل '+m+' دقيقة':m<1440?'قبل '+Math.round(m/60)+' ساعة':'قبل '+Math.round(m/1440)+' يوم'};
+const dayFull=k=>dateTxt(k)+' '+fromKey(k).getFullYear();
+
+/* ---- teacher: auto push ---- */
+let hqT=null,hqBusy=false;
+function hqMark(){if(!HQ||!HQ.code||SUP)return;HQ.dirty=1;lsSet(HQ_LS,HQ);clearTimeout(hqT);hqT=setTimeout(()=>hqPush(),4000)}
+async function hqPush(force){
+  if(!HQ||!HQ.code||SUP||hqBusy)return false;
+  if(!HQ.dirty&&!force)return true;
+  if(navigator.onLine===false)return false;
+  hqBusy=true;const rev=S.rev;
+  try{
+    const j=await hq({a:'sync',code:HQ.code,halaqat:S.halaqat});
+    if(S.rev===rev)HQ.dirty=0;HQ.at=j.at;HQ.bad=0;lsSet(HQ_LS,HQ);return true;
+  }catch(e){if(e.status===401){HQ.bad=1;lsSet(HQ_LS,HQ)}return false}
+  finally{hqBusy=false}
+}
+addEventListener('online',()=>hqPush());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')hqPush()});
+
+function hqSheet(){
+  const el=sheet('الربط مع الإدارة','ليرى المشرف حلقتك ويتابع الغياب','','');
+  const body=$('.sheet-b',el);
+  const draw=()=>{
+    body.innerHTML=HQ&&HQ.code?`
+      <div class="card"><b>مرتبط باسم: ${esc(HQ.name||'')}</b>
+      <div class="note" style="margin-top:4px">آخر مزامنة: ${ago(HQ.at)}${HQ.dirty?' · توجد تغييرات لم تُرسل بعد':''}</div>
+      ${HQ.bad?'<div class="note" style="color:#B3261E;margin-top:4px">الرمز لم يعد صالحاً، اطلب رمزاً جديداً من المشرف.</div>':''}</div>
+      <p class="note">يعمل التطبيق دون إنترنت كالمعتاد، وتُرسل التغييرات تلقائياً إلى الإدارة عند توفر الاتصال.</p>
+      <button class="btn pri block" type="button" id="hq-now">مزامنة الآن</button>
+      <button class="btn danger block" type="button" id="hq-off">فك الربط</button>
+      <p class="msg" id="hq-m" role="alert"></p>`
+    :`<p class="note">اطلب من المشرف رمز الربط الخاص بك، ثم اكتبه هنا مرة واحدة.</p>
+      <div class="fld"><label for="hq-c">رمز الربط</label><input id="hq-c" class="inp" dir="ltr" style="text-align:center;letter-spacing:1px" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"></div>
+      <button class="btn pri block" type="button" id="hq-go">ربط</button><p class="msg" id="hq-m" role="alert"></p>`;
+    const m=t=>{const x=$('#hq-m',body);if(x)x.textContent=t};
+    const go=$('#hq-go',body);
+    if(go)go.onclick=async()=>{
+      const code=$('#hq-c',body).value.trim().toUpperCase();
+      if(code.length<8)return m('اكتب الرمز كاملاً.');
+      go.disabled=true;m('جارٍ التحقق…');
+      try{const j=await hq({a:'ping',code});HQ={code,name:j.name,at:0,dirty:1};lsSet(HQ_LS,HQ);draw();toast('تم الربط');hqPush(true).then(()=>draw())}
+      catch(e){m(e.message);go.disabled=false}
+    };
+    const now=$('#hq-now',body);
+    if(now)now.onclick=async()=>{now.disabled=true;m('جارٍ الإرسال…');const ok=await hqPush(true);draw();const x=$('#hq-m',body);if(x)x.textContent=ok?'تمت المزامنة.':'تعذّرت المزامنة، تحقق من الإنترنت.'};
+    const off=$('#hq-off',body);
+    if(off)confirmBtn(off,'اضغط مرة أخرى لفك الربط',()=>{HQ=null;try{localStorage.removeItem(HQ_LS)}catch(e){}draw()});
+  };
+  draw();
+}
+
+/* ---- supervisor ---- */
+function supSetData(D){
+  SU.data=D;
+  S={rev:0,halaqat:[]};
+  D.teachers.forEach(t=>(t.halaqat||[]).forEach(h=>{h.tname=t.name;h.tid=t.id;h.off=h.off||{};h.students=h.students||[];S.halaqat.push(h)}));
+  lsSet(SUP_LS,{pw:SU.pw,data:D});
+}
+async function supLoad(){
+  const [D,A]=await Promise.all([hq({a:'list',pw:SU.pw}),hq({a:'attget',pw:SU.pw,date:SU.date})]);
+  supSetData(D);SU.marks=A.marks||{};SU.err='';
+}
+function enterSup(){
+  SUP=true;UI.screen='sup';UI.hid=null;
+  $('#splash').hidden=true;$('#app').hidden=false;window.scrollTo(0,0);render({keepScroll:false});
+}
+function exitSup(){
+  SUP=false;try{localStorage.removeItem(SUP_LS)}catch(e){}
+  const o=lsGet(LS,null);S=o&&Array.isArray(o.halaqat)?o:{rev:0,halaqat:[]};
+  SU={tab:'att',date:today(),data:null,marks:{},pw:'',err:''};
+  UI.screen='halaqat';closeTop();while(layers.children.length)closeTop();render({keepScroll:false});
+}
+function supLoginSheet(){
+  const el=sheet('دخول المشرف','','<div class="fld"><label for="sl-p">كلمة سر المشرف</label><input id="sl-p" class="inp" type="password" autocomplete="current-password"></div><p class="msg" id="sl-m" role="alert"></p>',`<button class="btn pri block" type="button" id="sl-go">دخول</button>`);
+  const go=async()=>{
+    const pw=$('#sl-p',el).value;if(!pw)return;
+    const b=$('#sl-go',el);b.disabled=true;$('#sl-m',el).textContent='جارٍ الدخول…';
+    SU.pw=pw;
+    try{SU.date=today();await supLoad();closeTop();enterSup()}
+    catch(e){SU.pw='';$('#sl-m',el).textContent=e.message;b.disabled=false}
+  };
+  $('#sl-go',el).onclick=go;$('#sl-p',el).addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+}
+async function supStart(){
+  const c=lsGet(SUP_LS,null);
+  if(!c||!c.pw)return supLoginSheet();
+  SU.pw=c.pw;SU.date=today();
+  if(c.data)supSetData(c.data);
+  enterSup();
+  try{await supLoad();render()}
+  catch(e){if(e.status===401){exitSup();toast('كلمة السر لم تعد صحيحة');return}SU.err=c.data?'تعذّر التحديث، المعروض آخر نسخة محفوظة على الجهاز.':e.message;render()}
+}
+const supWaOk=st=>phoneOk(normPhone(st.phone));
+const supMsg=()=>String((SU.data&&SU.data.msg)||'').replace(/\{التاريخ\}/g,dayFull(SU.date));
+function supView(){
+  const D=SU.data;
+  const head=`<header class="hdr"><div class="hdr-row"><div class="hdr-title"><h1>المشرف</h1></div><button class="btn sm" type="button" data-act="sup-refresh">تحديث</button><button class="btn sm" type="button" data-act="sup-set">الإعدادات</button></div></header>`;
+  if(!D)return head+`<main><div class="empty"><h3>${esc(SU.err||'جارٍ التحميل…')}</h3></div></main>`;
+  const hs=S.halaqat;
+  const tabs=`<div class="seg" style="grid-template-columns:repeat(2,1fr)" role="tablist">${[['att','تحضير أولياء الأمور'],['hal','الحلقات والتقارير']].map(([k,v])=>`<button type="button" role="tab" data-act="sup-tab" data-t="${k}" aria-selected="${SU.tab===k}">${v}</button>`).join('')}</div>`;
+  const err=SU.err?`<p class="note" style="color:#B3261E">${esc(SU.err)}</p>`:'';
+  if(!hs.length)return head+`<main>${tabs}${err}<div class="empty"><h3>لا توجد حلقات مربوطة بعد</h3><p>من «الإعدادات» أضف المعلمين وأعطِ كل معلم رمزه، وعندما يربط حلقته تظهر هنا.</p></div></main>`;
+  return head+`<main>${tabs}${err}${SU.tab==='att'?supAtt(hs):supHal(hs)}</main>`;
+}
+function supHal(hs){
+  return hs.map(h=>`<article class="hcard"><div class="hcard-top"><b class="hcard-name" style="cursor:default">${esc(h.name)}</b></div>
+    <div class="hcard-meta"><span class="pill">المعلم: <b>${esc(h.tname)}</b></span><span class="pill">المرحلة: <b>${esc(h.stage||'')}</b></span><span class="pill">الطلاب: <b>${h.students.length}</b></span></div>
+    <div class="hcard-meta"><button class="btn soft sm" type="button" data-act="report" data-id="${h.id}">${I.chart}التقرير الأسبوعي</button><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button></div></article>`).join('')
+    +`<p class="note">آخر مزامنة: ${SU.data.teachers.map(t=>esc(t.name)+' — '+ago(t.at)).join(' · ')}</p>`;
+}
+function supAtt(hs){
+  const k=SU.date,all=[];hs.forEach(h=>h.students.forEach(st=>all.push([h,st])));
+  const c={p:0,a:0};all.forEach(([h,st])=>{const m=SU.marks[h.id+':'+st.id];if(m)c[m.s]++});
+  return `<div class="daypick"><button class="btn sm" type="button" data-act="sup-dd" data-d="-1" aria-label="اليوم السابق">${I.back}</button><input type="date" id="su-d" class="inp" value="${k}"><button class="btn sm" type="button" data-act="sup-dd" data-d="1" aria-label="اليوم التالي"><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>
+  <div class="card"><b>${dayFull(k)}</b><div class="note" style="margin-top:4px">حاضر ${c.p} · غائب ${c.a} · لم يُحضَّر ${all.length-c.p-c.a}</div><div class="note" style="margin-top:4px">هذا التحضير للمتابعة مع أولياء الأمور، ولا يؤثر على تحضير المعلم.</div></div>
+  ${c.a?`<button class="btn wa block" type="button" data-act="sup-wa-all">${I.wa}رسائل الغياب (${c.a})</button>`:''}
+  ${hs.map(h=>`<article class="hcard"><div class="hcard-top"><b class="hcard-name" style="cursor:default">${esc(h.name)}</b><button class="btn soft sm" type="button" data-act="sup-allp" data-h="${h.id}">الكل حاضر</button></div><div class="note">${esc(h.tname)}</div>
+    ${h.students.map(st=>{const m=SU.marks[h.id+':'+st.id],s=m&&m.s;
+      return `<div class="su-row"><span class="su-n">${esc(st.name)}</span>
+        <button class="su-b p${s==='p'?' on':''}" type="button" data-act="sup-mark" data-h="${h.id}" data-s="${st.id}" data-v="p" aria-pressed="${s==='p'}">حاضر</button>
+        <button class="su-b a${s==='a'?' on':''}" type="button" data-act="sup-mark" data-h="${h.id}" data-s="${st.id}" data-v="a" aria-pressed="${s==='a'}">غائب</button>
+        ${s==='a'?(supWaOk(st)?`<button class="btn wa sm" type="button" data-act="sup-wa" data-h="${h.id}" data-s="${st.id}">${I.wa}${m.n?'أُرسلت':'إرسال'}</button>`:'<small class="su-no">لا رقم</small>'):''}</div>`}).join('')||'<p class="note">لا طلاب.</p>'}</article>`).join('')}`;
+}
+async function supSave(marks){
+  try{await hq({a:'attset',pw:SU.pw,date:SU.date,marks})}
+  catch(e){toast('تعذّر الحفظ: '+e.message)}
+}
+function supFind(hid,sid){const h=getH(hid);return[h,h&&getS(h,sid)]}
+async function supGoto(k){
+  SU.date=k;SU.marks={};render();
+  try{const A=await hq({a:'attget',pw:SU.pw,date:k});if(SU.date===k){SU.marks=A.marks||{};render()}}catch(e){toast(e.message)}
+}
+function supWaAll(){
+  const rows=[];S.halaqat.forEach(h=>h.students.forEach(st=>{const m=SU.marks[h.id+':'+st.id];if(m&&m.s==='a')rows.push([h,st,m])}));
+  const el=sheet('رسائل الغياب',dayFull(SU.date),`<p class="note">اضغط «إرسال» بجانب كل طالب، فيفتح واتساب على رقم ولي الأمر والرسالة جاهزة.</p>
+    ${rows.map(([h,st,m])=>{const n=normPhone(st.phone),ok=phoneOk(n);
+      return `<div class="wa-row"><div><b>${esc(st.name)}</b><small>${esc(h.name)} · ${ok?'+'+n:'لا يوجد رقم'}</small></div>
+      ${ok?`<a class="btn ${m.n?'':'wa'} sm" target="_blank" rel="noopener" data-k="${h.id}:${st.id}" href="https://wa.me/${n}?text=${encodeURIComponent(supMsg())}">${I.wa}${m.n?'أُرسلت':'إرسال'}</a>`:'<button class="btn sm" type="button" disabled>لا رقم</button>'}</div>`}).join('')}`,'');
+  el.addEventListener('click',e=>{
+    const a=e.target.closest('a[data-k]');if(!a)return;
+    const k=a.dataset.k,m=SU.marks[k];if(m&&!m.n){m.n=1;supSave({[k]:{s:'a',n:1}})}
+  });
+}
+function supSettings(){
+  const D=SU.data;
+  const el=sheet('إعدادات المشرف','','','');
+  const body=$('.sheet-b',el);
+  const draw=(code)=>{
+    body.innerHTML=`
+    <div class="fld"><label for="ss-m">نص رسالة الغياب (اكتب {التاريخ} مكان تاريخ اليوم)</label><textarea id="ss-m" class="inp" rows="5" style="height:auto;padding:12px">${esc(D.msg)}</textarea></div>
+    <button class="btn block" type="button" id="ss-sv">حفظ نص الرسالة</button>
+    <div class="fld" style="margin-top:14px"><span class="lbl">المعلمون</span></div>
+    ${D.teachers.map(t=>`<div class="wa-row"><div><b>${esc(t.name)}</b><small style="direction:rtl">${(t.halaqat||[]).length} حلقة · ${ago(t.at)}</small></div><button class="btn danger sm" type="button" data-td="${t.id}">حذف</button></div>`).join('')||'<p class="note">لا يوجد معلمون بعد.</p>'}
+    ${code?`<div class="card" style="margin-top:10px"><b>رمز ${esc(code.name)}</b><div dir="ltr" style="font-size:24px;font-weight:800;letter-spacing:2px;text-align:center;margin:8px 0">${code.code}</div><div class="note">يظهر هذا الرمز مرة واحدة فقط، أرسله للمعلم الآن.</div><button class="btn block" type="button" id="ss-cp" style="margin-top:8px">نسخ الرمز</button></div>`:''}
+    <div class="fld" style="margin-top:10px"><label for="ss-t">إضافة معلم</label><input id="ss-t" class="inp" placeholder="اسم المعلم" maxlength="60"></div>
+    <button class="btn pri block" type="button" id="ss-add">إنشاء رمز للمعلم</button>
+    ${QCF_ON?'<button class="btn block" type="button" id="ss-up" style="margin-top:14px">التحقق من تحديث التطبيق</button>':''}
+    <button class="btn danger block" type="button" id="ss-out" style="margin-top:14px">تسجيل الخروج</button>
+    <p class="msg" id="ss-e" role="alert"></p>`;
+    const m=t=>{$('#ss-e',body).textContent=t};
+    $('#ss-sv',body).onclick=async()=>{try{const j=await hq({a:'cfgset',pw:SU.pw,msg:$('#ss-m',body).value});D.msg=j.msg;lsSet(SUP_LS,{pw:SU.pw,data:D});$('#ss-m',body).value=j.msg;toast('تم الحفظ')}catch(e){m(e.message)}};
+    $('#ss-add',body).onclick=async()=>{const n=$('#ss-t',body).value.trim();if(!n)return m('اكتب اسم المعلم.');
+      try{const j=await hq({a:'tadd',pw:SU.pw,name:n});D.teachers.push({id:j.id,name:j.name,halaqat:[],at:0});lsSet(SUP_LS,{pw:SU.pw,data:D});draw({name:j.name,code:j.code})}catch(e){m(e.message)}};
+    const cp=$('#ss-cp',body);if(cp)cp.onclick=async()=>{try{await navigator.clipboard.writeText(code.code);toast('تم النسخ')}catch(e){toast('انسخ الرمز يدوياً')}};
+    $$('[data-td]',body).forEach(b=>confirmBtn(b,'تأكيد الحذف',async()=>{
+      try{await hq({a:'tdel',pw:SU.pw,id:b.dataset.td});D.teachers=D.teachers.filter(t=>t.id!==b.dataset.td);supSetData(D);draw();render()}catch(e){m(e.message)}}));
+    const up=$('#ss-up',body);if(up)up.onclick=checkUpd;
+    $('#ss-out',body).onclick=()=>exitSup();
+  };
+  draw();
+}
+$('#app').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const a=b.dataset.act;
+  if(a==='hq')return hqSheet();
+  if(a==='upd')return checkUpd();
+  if(!a.startsWith('sup-'))return;
+  switch(a){
+    case 'sup-tab':SU.tab=b.dataset.t;return render();
+    case 'sup-set':return supSettings();
+    case 'sup-refresh':{b.disabled=true;try{await supLoad();toast('تم التحديث')}catch(er){SU.err=er.message}render();return}
+    case 'sup-dd':return supGoto(key(addDays(fromKey(SU.date),+b.dataset.d)));
+    case 'sup-mark':{
+      const k=b.dataset.h+':'+b.dataset.s,v=b.dataset.v,cur=SU.marks[k];
+      if(cur&&cur.s===v){delete SU.marks[k];render();return supSave({[k]:null})}
+      SU.marks[k]={s:v,n:0};render();return supSave({[k]:{s:v,n:0}});
+    }
+    case 'sup-allp':{
+      const h=getH(b.dataset.h),mk={};
+      h.students.forEach(st=>{const k=h.id+':'+st.id;if(!SU.marks[k]){SU.marks[k]={s:'p',n:0};mk[k]={s:'p',n:0}}});
+      render();return Object.keys(mk).length?supSave(mk):0;
+    }
+    case 'sup-wa':{
+      const [h,st]=supFind(b.dataset.h,b.dataset.s);if(!st)return;
+      const k=h.id+':'+st.id,m=SU.marks[k];waOpen(normPhone(st.phone),supMsg());
+      if(m&&!m.n){m.n=1;render();supSave({[k]:{s:'a',n:1}})}return;
+    }
+    case 'sup-wa-all':return supWaAll();
+  }
+});
+document.addEventListener('change',e=>{if(e.target.id==='su-d'&&e.target.value)supGoto(e.target.value)});
+$('#sup-in').addEventListener('click',supStart);
+if(!QCF_ON)$('#sup-in').hidden=true;
+
+/* ================= app update ================= */
+window.__onUpd=()=>{
+  if($('#upd'))return;
+  const b=document.createElement('div');b.id='upd';b.className='upd';
+  b.innerHTML='<span>تم تنزيل نسخة جديدة من التطبيق</span><button type="button" class="btn pri sm">تحديث الآن</button>';
+  b.querySelector('button').onclick=()=>location.reload();document.body.appendChild(b);
+};
+async function checkUpd(){
+  const r=window.__swr;
+  if(!r){toast('التحديث التلقائي يعمل في النسخة المثبّتة فقط');return}
+  toast('جارٍ البحث عن تحديث…');
+  try{await r.update()}catch(e){toast('تعذّر الفحص، تحقق من الإنترنت');return}
+  setTimeout(()=>{if(!$('#upd'))toast('أنت على أحدث نسخة')},4000);
+}
+if(HQ&&HQ.code&&HQ.dirty)setTimeout(()=>hqPush(),3000);
+
 /* ================= install (Android / Chrome) ================= */
 let deferredInstall=null;
 const isStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
@@ -1668,7 +1915,7 @@ window.addEventListener('appinstalled',()=>{deferredInstall=null;if(!$('#app').h
 
 /* ================= boot ================= */
 initRemote();
-if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){const had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had&&window.__onUpd)window.__onUpd()});addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').then(r=>{window.__swr=r}).catch(()=>{})})}
 window.__halaqa={weekModel,weekStartOf,isOff,linesBetween,inRange,judge,aidx,AC,SN,QD};
 })();
 </script>
