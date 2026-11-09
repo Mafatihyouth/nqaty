@@ -555,14 +555,16 @@ function studentWeek(h,st,days){
     return{k,s,t:s};
   });
   const counted=cells.filter(c=>c.s==='counted').length;
-  const excused=cells.filter(c=>c.excused).length,req=st.quota*(counted-excused);
+  const excused=cells.filter(c=>c.excused).length,thuMiss=cells.filter(c=>c.t==='noatt').length;
+  /* من غاب يوم الخميس فاته مقرر ذلك اليوم، ومن حضر لا يُسجَّل عليه شيء */
+  const req=st.quota*(counted-excused+thuMiss);
   const done=cells.reduce((a,c)=>a+(c.lines||0),0);
   const diff=done-req;
   const withRec=cells.filter(c=>c.r).sort((a,b)=>a.k<b.k?-1:1);
   const rv=kind=>{let n=0,e=0,last=null;for(const c of cells){if(c.k>t)continue;const r=recOf(st,c.k,kind);if(r){n++;e+=r.err||0;last={k:c.k,r}}}return{n,e,last}};
   const absent=cells.filter(c=>c.t==='absent').length,nolog=cells.filter(c=>c.t==='nolog').length;
   const thuDays=cells.filter(c=>c.s==='att').length,thuPres=cells.filter(c=>c.t==='att').length;
-  return{st,cells,counted,req,done,diff,status:counted?judge(done,req):'none',complete:counted>0&&done>=req,
+  return{st,cells,counted,req,done,diff,status:(counted||thuMiss)?judge(done,req):'none',complete:(counted>0||thuMiss>0)&&done>=req,
     short:Math.max(0,-diff),extra:Math.max(0,diff),excused,pct:req?Math.round(done*100/req):(counted?100:0),
     first:withRec[0]||null,last:withRec[withRec.length-1]||null,recDays:withRec.length,
     errs:withRec.reduce((a,c)=>a+c.err,0),yest:rv('yesterday'),nas:rv('nas'),wk:rv('week'),
@@ -1210,7 +1212,7 @@ function weekNotes(r,m){
   if(r.absent){const ds=r.cells.filter(c=>c.t==='absent').map(c=>DAYS[fromKey(c.k).getDay()]).join('، ');n.push('سُجّل غائباً '+dayTxt(r.absent)+' ('+ds+').')}
   if(r.nolog)n.push('لم يسمّع في '+dayTxt(r.nolog)+' ('+r.cells.filter(c=>c.t==='nolog').map(c=>DAYS[fromKey(c.k).getDay()]).join('، ')+') ولم يُحتسب له فيها حفظ.')
   if(r.excused)n.push('سمّع مراجعة الأسبوع في '+dayTxt(r.excused)+' فأُعفي من مقرر الحفظ فيه ولم يُحسب عليه.');
-  if(r.thuDays)n.push(r.thuAbs?'حضر يوم الخميس '+r.thuPres+' من '+r.thuDays+' (غاب '+dayTxt(r.thuAbs)+'، ولا يؤثر ذلك على المقرر).':'حضر '+(r.thuDays>1?'جميع أيام الخميس ('+r.thuDays+').':'يوم الخميس.'));
+  if(r.thuDays)n.push(r.thuAbs?'حضر يوم الخميس '+r.thuPres+' من '+r.thuDays+' (غاب '+dayTxt(r.thuAbs)+' فحُسب عليه مقرر ذلك اليوم).':'حضر '+(r.thuDays>1?'جميع أيام الخميس ('+r.thuDays+').':'يوم الخميس.'));
   if(r.recDays)n.push('حفظ '+lineTxt(r.done)+' (ما يعادل '+numTxt(r.pages)+' صفحة)، ومجموع أخطائه في الحفظ '+r.errs+' بمعدل '+numTxt(r.errs/r.recDays)+' في اليوم.');
   if(r.wk.last)n.push('مراجعة الأسبوع: '+recTxt(r.wk.last.r)+' (الأخطاء: '+(r.wk.last.r.err||0)+').');
   return n;
@@ -1279,7 +1281,7 @@ function reportView(hid){
     out+=`<section class="card sec"><h3>مسار الحفظ</h3>${path}</section>`;
     out+=`<section class="card sec"><h3>الحفظ يوماً بيوم</h3>${r.cells.map(c=>{
       const bc=c.t==='weekrev'?'st-ahead':c.t==='att'?'st-on':c.t==='noatt'||c.t==='absent'?'st-absent':c.r||c.bonus?'st-'+c.t:'st-none';
-      const det=c.r?`${esc(recTxt(c.r))}<br>${lineTxt(c.lines)} · الأخطاء: ${c.err}`:esc({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم',off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[c.t]||'');
+      const det=c.r?`${esc(recTxt(c.r))}<br>${lineTxt(c.lines)} · الأخطاء: ${c.err}`:esc({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس (حُسب عليه مقرر اليوم)',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم',off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[c.t]||'');
       return `<div class="drow${c.t==='off'||c.t==='future'||c.t==='pending'?' dim':''}"><div class="drow-top"><b>${dateTxt(c.k)}</b><span class="badge ${bc}">${dayStatusTxt(c)}</span></div><p>${det}</p></div>`}).join('')}</section>`;
     const rv=(t,x)=>`<div class="stat"><span>${t}</span><b>${x.n?dayTxt(x.n):'—'}</b><small>${x.n?'الأخطاء: '+x.e:'لم يُسجَّل'}</small></div>`;
     out+=`<section class="card sec"><h3>المراجعة</h3><div class="revs">${rv('مراجعة أمس',r.yest)}${rv('مراجعة الناس',r.nas)}${rv('مراجعة الأسبوع',r.wk)}</div></section>`;
@@ -1451,7 +1453,7 @@ function paintReport(c,kind,m,row,Hf){
   { const L=r.cells.map(cc=>{
       const det=[];
       if(cc.r){det.push(recTxt(cc.r));det.push(lineTxt(cc.lines)+' · الأخطاء: '+cc.err)}
-      else det.push({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم',off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[cc.t]||'');
+      else det.push({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس (حُسب عليه مقرر اليوم)',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم',off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[cc.t]||'');
       return{cc,lines:det.flatMap(d=>P.wrap(d,IWc,26,500))};
     });
     const hh=92+L.reduce((a,x)=>a+66+x.lines.length*36+22,0);
