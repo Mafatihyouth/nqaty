@@ -279,6 +279,7 @@ main{padding-top:16px;display:flex;flex-direction:column;gap:14px}
 .wkr small{color:var(--muted);font-size:12.5px}
 .lnk{border:0;background:none;color:var(--gt);font-weight:700;font-size:13px;text-decoration:underline;padding:2px 4px;min-height:28px}
 .btn:disabled{opacity:.45;cursor:default}
+.wkbar[hidden]{display:none!important}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--surface2);border-radius:14px;padding:4px}
 .seg button{border:0;background:transparent;border-radius:11px;min-height:46px;font-weight:800;font-size:14.5px;padding:0 6px;color:var(--muted)}
 .seg button[aria-selected="true"]{background:var(--surface);color:var(--gt);box-shadow:var(--shadow)}
@@ -1162,16 +1163,16 @@ function waGeneralText(m){
   L.push('');L.push('حلقات أبوبكر الصديق');
   return L.join('\n');
 }
-function waSupervisor(h,m){
+function waSupervisor(h,m,txt){
   const n=normPhone(h.sup);
-  if(phoneOk(n))return waOpen(n,waGeneralText(m));
+  if(phoneOk(n))return waOpen(n,txt||waGeneralText(m));
   const el=sheet('رقم المشرف','أدخله مرة واحدة ليُحفظ في الحلقة',`
     <div class="fld"><label for="sp-n">رقم واتساب المشرف</label><input id="sp-n" class="inp" type="tel" inputmode="tel" dir="ltr" style="text-align:right" placeholder="مثال: 0501234567 أو 966501234567" autocomplete="off"></div>
     <p class="msg" id="sp-m" role="alert"></p>`,`<button class="btn wa block" type="button" id="sp-go">${I.wa}حفظ وإرسال</button>`);
   $('#sp-go',el).onclick=()=>{
     const v=normPhone($('#sp-n',el).value);
     if(!phoneOk(v)){$('#sp-m',el).textContent='اكتب رقماً صحيحاً مع رمز الدولة أو بالصيغة المحلية 05xxxxxxxx.';return}
-    h.sup=v;persist();closeTop();waOpen(v,waGeneralText(m));
+    h.sup=v;persist();closeTop();waOpen(v,txt||waGeneralText(m));
   };
 }
 function waOpen(num,text){
@@ -1235,7 +1236,7 @@ const stClass=k=>['on','ahead','late','bad','none'].includes(k)?'st-'+k:k;
 
 function reportView(hid){
   const h=getH(hid);if(!h)return;
-  const RS={wk:weekStartOf(h,today()),tab:'general',sid:h.students[0]?h.students[0].id:null};
+  const RS={wk:weekStartOf(h,today()),mo:moOf(today()),tab:'general',sid:h.students[0]?h.students[0].id:null};
   const el=openLayer('','report');
   el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','التقرير الأسبوعي');
   const cur=()=>weekStartOf(h,today());
@@ -1305,33 +1306,36 @@ function reportView(hid){
   function draw(){
     const top=el.scrollTop,m=weekModel(h,RS.wk);
     if(!h.students.find(s=>s.id===RS.sid))RS.sid=h.students[0]?h.students[0].id:null;
-    const isCur=RS.wk>=cur(),canExp=!!(m.rows.length&&m.counted&&(RS.tab==='general'||RS.sid));
+    const isMo=RS.tab==='month',mm=isMo?monthModel(h,RS.mo):null;
+    const isCur=RS.wk>=cur(),canExp=isMo?!!(mm.rows.length&&mm.counted):!!(m.rows.length&&m.counted&&(RS.tab==='general'||RS.sid));
     el.innerHTML=`<div class="rep-in">
-      <div class="rep-hdr"><button class="ibtn plain" type="button" data-x aria-label="إغلاق التقرير">${I.back}</button><div><h2>التقرير الأسبوعي</h2><p>${esc(h.name)}</p></div></div>
-      <div class="wkbar">
+      <div class="rep-hdr"><button class="ibtn plain" type="button" data-x aria-label="إغلاق التقرير">${I.back}</button><div><h2>${isMo?'التقرير الشهري':'التقرير الأسبوعي'}</h2><p>${esc(h.name)}</p></div></div>
+      ${isMo?`<div class="wkbar"><button class="btn sm" type="button" data-mo="-1">${I.back}<span>السابق</span></button><div class="wkr"><b>${esc(moTxt(RS.mo))}</b>${RS.mo>=moOf(today())?'<small>هذا الشهر</small>':'<button class="lnk" type="button" data-mo="cur">العودة لهذا الشهر</button>'}</div><button class="btn sm" type="button" data-mo="1"${RS.mo>=moOf(today())?' disabled':''}><span>التالي</span><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>`:''}
+      <div class="wkbar"${isMo?' hidden':''}>
         <button class="btn sm" type="button" data-wk="-1">${I.back}<span>السابق</span></button>
         <div class="wkr"><b>${esc(rangeTxt(RS.wk))}</b>${isCur?'<small>هذا الأسبوع</small>':'<button class="lnk" type="button" data-wk="cur">العودة لهذا الأسبوع</button>'}</div>
         <button class="btn sm" type="button" data-wk="1"${isCur?' disabled':''}><span>التالي</span><span style="transform:scaleX(-1);display:grid">${I.back}</span></button>
       </div>
-      <div class="seg" role="tablist" aria-label="نوع التقرير">
+      <div class="seg" role="tablist" aria-label="نوع التقرير" style="grid-template-columns:repeat(3,1fr)">
         <button type="button" role="tab" data-tab="general" aria-selected="${RS.tab==='general'}">التقرير العام للأسبوع</button>
         <button type="button" role="tab" data-tab="student" aria-selected="${RS.tab==='student'}">تقرير خاص لطالب</button>
+        <button type="button" role="tab" data-tab="month" aria-selected="${isMo}">التقرير الشهري</button>
       </div>
-      <div class="fld"><span class="lbl">أيام الأسبوع (اضغط على يوم لجعله إجازة أو يوم حلقة)</span><div class="dchips">${chipsHtml(m)}</div>${m.days.some(d=>d.s==='pending')?'<span class="note">اليوم لم يُسجَّل فيه شيء بعد فلم يُحسب. يُحسب بمجرد تسجيل تسميع أي طالب.</span>':''}</div>
-      ${RS.tab==='general'?genHtml(m):stuHtml(m)}
-      <div class="rep-foot"><div class="foot2"><button class="btn pri" type="button" data-export${canExp?'':' disabled'}>${I.img}<span>حفظ كصورة</span></button><button class="btn wa" type="button" data-wa${canExp?'':' disabled'}>${I.wa}<span>${RS.tab==='general'?'إرسال للمشرف':'إرسال لولي الأمر'}</span></button></div>${RS.tab==='general'?`<button class="btn soft block" type="button" data-waall${canExp?'':' disabled'} style="margin-top:8px">إرسال تقارير أولياء الأمور</button>`:''}</div>
+      ${isMo?'':`<div class="fld"><span class="lbl">أيام الأسبوع (اضغط على يوم لجعله إجازة أو يوم حلقة)</span><div class="dchips">${chipsHtml(m)}</div>${m.days.some(d=>d.s==='pending')?'<span class="note">اليوم لم يُسجَّل فيه شيء بعد فلم يُحسب. يُحسب بمجرد تسجيل تسميع أي طالب.</span>':''}</div>`}
+      ${isMo?monthHtml(mm,noStudents):RS.tab==='general'?genHtml(m):stuHtml(m)}
+      <div class="rep-foot"><div class="foot2"><button class="btn pri" type="button" data-export${canExp?'':' disabled'}>${I.img}<span>حفظ كصورة</span></button><button class="btn wa" type="button" data-wa${canExp?'':' disabled'}>${I.wa}<span>${RS.tab==='general'||isMo?'إرسال للمشرف':'إرسال لولي الأمر'}</span></button></div>${RS.tab==='general'&&!isMo?`<button class="btn soft block" type="button" data-waall${canExp?'':' disabled'} style="margin-top:8px">إرسال تقارير أولياء الأمور</button>`:''}</div>
     </div>`;
     el.scrollTop=top;
   }
   async function doExport(btn){
-    const m=weekModel(h,RS.wk),isS=RS.tab==='student',row=isS?m.rows.find(r=>r.st.id===RS.sid):null;
+    const m=weekModel(h,RS.wk),isS=RS.tab==='student',isM=RS.tab==='month',row=isS?m.rows.find(r=>r.st.id===RS.sid):null;
     btn.disabled=true;const old=btn.innerHTML;btn.textContent='جارٍ تجهيز الصورة…';
     try{
-      const can=await renderReport(isS?'student':'general',m,row);
+      const can=isM?await renderMonth(monthModel(h,RS.mo)):await renderReport(isS?'student':'general',m,row);
       const blob=await new Promise(r=>can.toBlob(r,'image/png'));
       if(!blob)throw new Error('no blob');
-      const nm=isS?'تقرير-'+row.st.name:'التقرير-العام-للأسبوع';
-      showShot(blob,(nm+'-'+RS.wk+'.png').replace(/[\\/:*?"<>|\s]+/g,'-'));
+      const nm=isM?'التقرير-الشهري':isS?'تقرير-'+row.st.name:'التقرير-العام-للأسبوع';
+      showShot(blob,(nm+'-'+(isM?RS.mo:RS.wk)+'.png').replace(/[\\/:*?"<>|\s]+/g,'-'));
     }catch(e){toast('تعذّر إنشاء الصورة')}
     finally{btn.disabled=false;btn.innerHTML=old}
   }
@@ -1340,12 +1344,17 @@ function reportView(hid){
     if(e.target.closest('[data-x]'))return closeTop();
     const w=e.target.closest('[data-wk]');
     if(w){const v=w.dataset.wk;if(v==='cur')RS.wk=cur();else{const n=key(addDays(fromKey(RS.wk),7*Number(v)));if(n>cur())return;RS.wk=n}return draw()}
+    const mo=e.target.closest('[data-mo]');
+    if(mo&&!mo.disabled){const v=mo.dataset.mo;if(v==='cur')RS.mo=moOf(today());else{const d=fromKey(RS.mo+'-01'),n=key(new Date(d.getFullYear(),d.getMonth()+Number(v),1)).slice(0,7);if(n>moOf(today()))return;RS.mo=n}return draw()}
+    const mw=e.target.closest('[data-mwa]');
+    if(mw){const mm=monthModel(h,RS.mo),row=mm.rows.find(r=>r.st.id===mw.dataset.mwa);if(!row)return;const n=normPhone(row.st.phone);if(!phoneOk(n)){toast('أضف رقم ولي الأمر من «بيانات الطالب» أولاً');return}return waOpen(n,waMonthText(mm,row))}
     const t=e.target.closest('[data-tab]');if(t){RS.tab=t.dataset.tab;return draw()}
     const o=e.target.closest('[data-off]');if(o&&!o.disabled){toggleOff(h,o.dataset.off);persist();return draw()}
     const x=e.target.closest('[data-export]');if(x&&!x.disabled)return doExport(x);
     const wal=e.target.closest('[data-waall]');if(wal&&!wal.disabled)return waAllSheet(h,weekModel(h,RS.wk));
     const wa=e.target.closest('[data-wa]');if(wa&&!wa.disabled){
       const m=weekModel(h,RS.wk);
+      if(RS.tab==='month'){const mm=monthModel(h,RS.mo);return waSupervisor(h,mm,waMonthGeneral(mm))}
       if(RS.tab==='general')return waSupervisor(h,m);
       const row=m.rows.find(r=>r.st.id===RS.sid);if(!row)return;
       const n=normPhone(row.st.phone);
@@ -1354,6 +1363,108 @@ function reportView(hid){
     }
   });
   el.addEventListener('change',e=>{if(e.target.id==='rp-stu'){RS.sid=e.target.value;draw()}});
+}
+
+/* ================= monthly report ================= */
+const moTxt=ym=>{const [y,m]=ym.split('-').map(Number);return MONTHS[m-1]+' '+y};
+const moOf=k=>k.slice(0,7);
+function monthModel(h,ym){
+  const first=ym+'-01',d0=fromKey(first),last=key(new Date(d0.getFullYear(),d0.getMonth()+1,0));
+  let ws=weekStartOf(h,first);const days=[];
+  while(ws<=last){weekDayStates(h,ws).forEach(x=>{if(x.k>=first&&x.k<=last)days.push(x)});ws=key(addDays(fromKey(ws),7))}
+  const rows=h.students.map(st=>{
+    const r=studentWeek(h,st,days);
+    r.exams=days.filter(d=>d.k<=today()&&isExam(h,d.k)&&examOf(st,d.k)).map(d=>({k:d.k,e:examOf(st,d.k)}));
+    return r;
+  });
+  return{h,ym,sk:first,last,days,month:true,rows,counted:days.filter(d=>d.s==='counted').length,thuDays:days.filter(d=>d.s==='att').length};
+}
+function monthLines(r,m){
+  const L=[];
+  if(m.counted||r.req)L.push((r.complete?'✅ أكمل مقرر الشهر':'⚠️ لم يكمل مقرر الشهر'));
+  if(m.counted||r.req)L.push('المطلوب: '+lineTxt(r.req)+' · المنجز: '+lineTxt(r.done)+(r.complete?(r.extra?' · الزيادة: '+lineTxt(r.extra):''):' · التأخر: '+lineTxt(r.short)));
+  return L;
+}
+function waMonthText(m,r){
+  const st=r.st,L=['*التقرير الشهري للطالب: '+st.name+'*',m.h.name+' · '+moTxt(m.ym),''];
+  monthLines(r,m).forEach(x=>L.push(x));
+  L.push('الأيام المحسوبة: '+m.counted);
+  if(r.absent)L.push('أيام الغياب: '+r.absent);
+  if(r.nolog)L.push('أيام لم يسمّع فيها: '+r.nolog);
+  if(r.thuDays)L.push('حضور الخميس: '+r.thuPres+' من '+r.thuDays);
+  if(r.first)L.push('بدأ الشهر من '+posTxt(r.first.r.s1,r.first.r.a1)+' ووصل إلى '+posTxt(r.last.r.s2,r.last.r.a2));
+  else L.push('لا يوجد حفظ مسجّل هذا الشهر.');
+  if(r.recDays)L.push('مجموع أخطاء الحفظ: '+r.errs);
+  r.exams.forEach(x=>L.push('📝 الاختبار الشهري ('+dateTxt(x.k)+'): '+examTxt(x.e)));
+  L.push('');L.push('حلقات أبوبكر الصديق');
+  return L.join('\n');
+}
+function waMonthGeneral(m){
+  const rows=m.rows,L=['*التقرير الشهري العام*',m.h.name+' · '+moTxt(m.ym),''];
+  if(!m.counted||!rows.length){L.push('لا توجد أيام محسوبة في هذا الشهر.')}
+  else{
+    L.push('أكمل المقرر: '+rows.filter(r=>r.complete).length+' من '+rows.length+' (الأيام المحسوبة: '+m.counted+')');L.push('');
+    rows.forEach(r=>L.push((r.complete?'✅ ':'⚠️ ')+r.st.name+' — '+r.done+' من '+r.req+' سطر'+(r.complete?'':' — التأخر: '+lineTxt(r.short))+(r.absent?' — غاب '+dayTxt(r.absent):'')+(r.exams.length?' — الاختبار: '+r.exams.map(x=>numTxt(examTot(x.e))+'/30').join('، '):'')));
+  }
+  L.push('');L.push('حلقات أبوبكر الصديق');
+  return L.join('\n');
+}
+function monthHtml(m,noStudents){
+  if(!m.rows.length)return noStudents;
+  if(!m.counted)return '<div class="empty"><h3>لا توجد أيام محسوبة في هذا الشهر</h3><p>لم يبدأ التسجيل في هذا الشهر بعد، أو أن كل أيامه إجازة.</p></div>';
+  const rows=m.rows,comp=rows.filter(r=>r.complete).length,total=rows.reduce((a,r)=>a+r.done,0);
+  const topL=Math.max(0,...rows.map(r=>r.done)),tops=topL>0?rows.filter(r=>r.done===topL):[];
+  const ex=rows.filter(r=>r.exams.length);
+  return `<div class="tiles">
+    <div class="tile"><h3>أكملوا مقرر الشهر</h3><div class="big">${comp} من ${rows.length}</div><div class="sub">الأيام المحسوبة: ${m.counted} · إجمالي الأسطر: ${total}</div></div>
+    <div class="tile"><h3>أكثر طالب حفظاً</h3>${tops.length?`<div class="big">${tops.map(r=>esc(r.st.name)).join('، ')}</div><div class="sub">${lineTxt(topL)}</div>`:'<div class="sub">لا يوجد حفظ مسجّل.</div>'}</div>
+    ${ex.length?`<div class="tile"><h3>الاختبار الشهري</h3><ul>${ex.map(r=>`<li><span>${esc(r.st.name)}</span><b>${r.exams.map(x=>numTxt(examTot(x.e))+' / 30').join('، ')}</b></li>`).join('')}</ul></div>`:''}
+  </div>
+  ${rows.map(r=>`<article class="wrow">
+    <div class="wrow-top"><b>${esc(r.st.name)}</b><span class="badge st-${r.status}">${r.complete?'أكمل المقرر':'لم يكمل المقرر'}</span></div>
+    <div class="wnums"><span>المطلوب <b>${r.req}</b> سطر</span><span>المنجز <b>${r.done}</b> سطر</span>${r.complete?(r.extra?`<span>الزيادة <b>${r.extra}</b> سطر</span>`:''):`<span class="lt">التأخر <b>${lineTxt(r.short)}</b></span>`}</div>
+    <div class="wbar"><i class="st-${r.status}" style="width:${Math.min(100,r.pct)}%"></i></div>
+    <div class="wnums"><span>غاب <b>${r.absent}</b></span><span>لم يسمّع <b>${r.nolog}</b></span>${r.thuDays?`<span>الخميس <b>${r.thuPres}/${r.thuDays}</b></span>`:''}${r.recDays?`<span>الأخطاء <b>${r.errs}</b></span>`:''}</div>
+    ${r.first?`<p class="note" style="margin-top:6px">من ${posTxt(r.first.r.s1,r.first.r.a1)} إلى ${posTxt(r.last.r.s2,r.last.r.a2)}</p>`:''}
+    ${r.exams.map(x=>`<p class="note" style="margin-top:4px">📝 الاختبار (${dateTxt(x.k)}): ${examTxt(x.e)}</p>`).join('')}
+    <button class="btn wa sm" type="button" data-mwa="${r.st.id}" style="margin-top:8px">${I.wa}إرسال لولي الأمر</button>
+  </article>`).join('')}`;
+}
+async function renderMonth(m){
+  await ensureFonts();
+  const draw=(c,Hf)=>{
+    const P=painter(c);let y=0;
+    if(Hf){c.fillStyle=CP.bg;c.fillRect(0,0,IW,Hf);c.fillStyle=CP.green;c.fillRect(0,0,IW,306)}
+    P.t('حلقات أبوبكر الصديق',XR,84,{s:42,w:700,c:'rgba(255,255,255,.86)',f:'"Aref Ruqaa",serif'});
+    P.t('التقرير الشهري',XR,170,{s:62,w:800,c:'#FFFFFF'});
+    P.t(P.fit(m.h.name,984,38,700),XR,226,{s:38,w:700,c:'#FFFFFF'});
+    P.t(moTxt(m.ym),XR,272,{s:30,w:500,c:'rgba(255,255,255,.9)'});
+    y=346;const rows=m.rows,pad=28;
+    P.t('الأيام المحسوبة: '+m.counted+' · أكمل المقرر '+rows.filter(r=>r.complete).length+' من '+rows.length,XR,y+8,{s:28,w:700,c:CP.deep});y+=40;
+    for(const r of rows){
+      const sc=stPair(r.status),ex=r.exams.length,ch=200+(ex?44:0),top=y;
+      P.rr(IM,top,984,ch,22,CP.bg,CP.line,2);
+      const stl=r.complete?'أكمل المقرر':'لم يكمل المقرر',pw=P.tw(stl,28,800)+44;
+      P.pill(stl,IM+pad+pw,top+52,sc[0],sc[1],28);
+      P.t(P.fit(r.st.name,984-pad*2-pw-24,40,800),XR-pad,top+64,{s:40,w:800});
+      let nx=XR-pad;const ny=top+112;
+      const chunks=[['المطلوب',r.req+' سطر',CP.ink],['المنجز',r.done+' سطر',CP.ink]];
+      if(!r.complete)chunks.push(['التأخر',lineTxt(r.short),CP.red]);else if(r.extra)chunks.push(['الزيادة',r.extra+' سطر',CP.deep]);
+      for(const [l,v,col] of chunks){P.t(l,nx,ny,{s:26,w:500,c:CP.muted});nx-=P.tw(l,26,500)+10;P.t(v,nx,ny,{s:30,w:800,c:col});nx-=P.tw(v,30,800)+42}
+      const bw=984-pad*2,by=top+130;P.rr(IM+pad,by,bw,14,7,CP.paper);
+      if(r.pct>0){const fw=Math.max(14,bw*Math.min(1,r.pct/100));P.rr(XR-pad-fw,by,fw,14,7,sc[0])}
+      P.t('غاب '+r.absent+' · لم يسمّع '+r.nolog+(r.thuDays?' · الخميس '+r.thuPres+'/'+r.thuDays:'')+(r.recDays?' · الأخطاء '+r.errs:''),XR-pad,top+182,{s:26,w:500,c:CP.muted});
+      if(ex)P.t(P.fit('الاختبار الشهري: '+r.exams.map(x=>numTxt(examTot(x.e))+' من 30').join('، '),IWc0,26,800),XR-pad,top+226,{s:26,w:800,c:CP.deep});
+      y+=ch+18;
+    }
+    P.t('صدر بتاريخ '+dateTxt(today())+' '+new Date().getFullYear(),IW/2,y+34,{s:24,w:500,c:CP.muted,a:'center'});
+    return y+80;
+  };
+  const IWc0=984-56;
+  const sc=document.createElement('canvas');sc.width=2;sc.height=2;
+  const H=Math.ceil(draw(sc.getContext('2d'),0)),k=H>15000?15000/H:1;
+  const can=document.createElement('canvas');can.width=Math.round(IW*k);can.height=Math.round(H*k);
+  const c=can.getContext('2d');c.scale(k,k);draw(c,H);return can;
 }
 
 /* ================= report image (canvas) ================= */
