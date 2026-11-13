@@ -56,6 +56,12 @@ svg{display:block;flex:none}
 .su-b{flex:none;min-width:56px;height:38px;padding:0 10px;border-radius:10px;border:1.5px solid var(--line);background:var(--card,#fff);color:var(--ink);font-weight:700;font-size:15px}
 .su-b.p.on{background:#1B7A4B;border-color:#1B7A4B;color:#fff}.su-b.a.on{background:#B3261E;border-color:#B3261E;color:#fff}
 .su-no{color:var(--muted);font-size:12px}
+.exam{border:1.5px solid var(--green);border-radius:14px;padding:12px;background:color-mix(in srgb,var(--green) 6%,transparent);margin-bottom:10px}
+.exam-in{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.exam-in label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700}
+.exam-in input{height:46px;border:1.5px solid var(--line);border-radius:10px;text-align:center;font:inherit;font-size:18px;font-weight:800;background:var(--card,#fff);color:var(--ink);width:100%;min-width:0}
+.exam-t{font-size:15px}
+.exam-banner{background:var(--green-soft);color:var(--green-deep);padding:10px 12px;border-radius:12px;font-weight:700;font-size:14px}
 textarea.inp{line-height:1.7;resize:vertical}
 .upd{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:96;font-weight:700;box-shadow:var(--shadow)}
 
@@ -410,7 +416,7 @@ const UI={screen:'halaqat',hid:null,open:null,sel:today(),mode:'A',sync:LSOK?'lo
 let col=null,saved={},timer=null,flushing=false,again=false;
 
 function toDocs(){
-  const D={meta:{rev:S.rev,halaqat:S.halaqat.map(h=>({id:h.id,name:h.name,stage:h.stage,off:h.off||{},sched:schedOf(h),ws:h.ws===6?6:0,sup:h.sup||''}))}};
+  const D={meta:{rev:S.rev,halaqat:S.halaqat.map(h=>({id:h.id,name:h.name,stage:h.stage,off:h.off||{},sched:schedOf(h),ws:h.ws===6?6:0,sup:h.sup||'',ex:h.ex||{}}))}};
   for(const h of S.halaqat)h.students.forEach((st,n)=>{
     D['s_'+st.id]={id:st.id,hid:h.id,n,name:st.name,stage:st.stage,quota:st.quota,rs:st.rs,ra:st.ra||0,phone:st.phone||'',up:st.up||0,upd:st.upd||{}};
     const by={};
@@ -494,7 +500,7 @@ function reachOf(st){
   return best?{s:best.s,a:best.a}:{s:st.rs,a:st.ra||0};
 }
 const reachTxt=st=>{const r=reachOf(st);return 'سورة '+SN[r.s-1]+(r.a?' · آية '+r.a:'')};
-const FLAGS=['shm','init','thu','abs'];
+const FLAGS=['shm','init','thu','abs','exam'];
 const hasAny=(st,d)=>!!(st.rec&&st.rec[d]&&Object.keys(st.rec[d]).some(k=>!FLAGS.includes(k)));
 /* ===== النقاط: تُحسب مباشرة من التسجيلات فتتحدّث مع كل تسميع ===== */
 const PTS={hifz:1,yesterday:1,nas:1,week:2,shm:1,init:1,thu:3};
@@ -648,7 +654,7 @@ function halaqatView(){
         <button class="hcard-go" type="button" data-act="open-halaqa" data-id="${h.id}"><span>فتح الحلقة</span><span style="transform:scaleX(-1);display:grid">${I.back}</span></button>
       </article>`).join('')
     :`<div class="empty"><h3>لم تُضف أي حلقة بعد</h3><p>أضف حلقتك الأولى بالاسم والمرحلة، وستبقى محفوظة في كل مرة تفتح فيها التطبيق.</p><button class="btn pri" type="button" data-act="add-halaqa">${I.plus}إضافة حلقة</button></div>`}
-    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding-top:6px"><button class="btn sm" type="button" data-act="backup">نسخة احتياطية واستعادة</button>${QCF_ON?`<button class="btn soft sm" type="button" data-act="hq">${HQ&&HQ.code&&!HQ.bad?"الربط مع الإدارة ✓":"الربط مع الإدارة"}</button><button class="btn sm" type="button" data-act="upd">تحديث التطبيق</button>`:''}${canInstall()?'<button class="btn soft sm" type="button" data-act="install">تثبيت التطبيق</button>':''}</div>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding-top:6px"><button class="btn sm" type="button" data-act="backup">نسخة احتياطية واستعادة</button>${QCF_ON?`<button class="btn soft sm" type="button" data-act="hq">${HQ&&HQ.code&&!HQ.bad?"الربط مع الإدارة ✓":"الربط مع الإدارة"}</button><button class="btn sm" type="button" data-act="upd">تحديث التطبيق</button>`:''}${canInstall()?'<button class="btn soft sm" type="button" data-act="install">تثبيت التطبيق</button>':''}${isIOS()&&!isStandalone()?'<button class="btn soft sm" type="button" data-act="ios">تثبيت على الآيفون</button>':''}</div>
   </main>`;
 }
 
@@ -707,12 +713,14 @@ function studentHtml(h,st){
     const A=UI.mode==='A';
     const dp=dayPts(st,d);
     if(thu)body=`<div class="stu-body">
+      ${isExam(h,d)?examHtml(st,d):''}
       <p class="note">يوم الخميس لا يوجد فيه تسميع، ومن حضر نال ${ptsTxt(PTS.thu)}.</p>
       <div class="flags">${chkHtml(st,'thu','حضر الطالب اليوم')}</div>
       <div class="stu-foot"><span class="info">نقاط اليوم: ${ptsTxt(dp)}</span>
         <button class="btn sm" type="button" data-act="edit-student" data-sid="${st.id}">${I.edit}بيانات الطالب</button></div>
     </div>`;
     else body=`<div class="stu-body">
+      ${isExam(h,d)?examHtml(st,d):''}
       <div class="flags">${chkHtml(st,'shm','هل أحضر الطالب الشماغ')}${chkHtml(st,'init','مبادرة')}</div>
       <div class="mode-row"><span>${A?'الحفظ والمراجعة اليومية':'مراجعة الأسبوع'}</span>
         <button class="btn sm" type="button" data-act="swap-mode" aria-label="تبديل الخانات">${I.swap}تبديل</button></div>
@@ -741,7 +749,8 @@ function halaqaView(){
     <div class="strip-wrap"><div class="strip" id="strip" role="group" aria-label="اختيار اليوم">${stripHtml(h)}</div></div>
   </header>
   <main>
-    <div class="daybar"><h2>${dayLabelY(UI.sel)}</h2><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button>${UI.sel!==today()?`<button class="btn sm" type="button" data-act="today">اليوم</button>`:''}</div>
+    <div class="daybar"><h2>${dayLabelY(UI.sel)}</h2><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button><button class="btn soft sm" type="button" data-act="exam">الاختبار</button>${UI.sel!==today()?`<button class="btn sm" type="button" data-act="today">اليوم</button>`:''}</div>
+    ${isExam(h,UI.sel)?'<div class="exam-banner">اليوم اختبار شهري: ثلاثة أسئلة، كل سؤال من 10 درجات. افتح بطاقة الطالب لتسجيل درجاته.</div>':''}
     ${h.students.length?h.students.map(st=>studentHtml(h,st)).join('')
       :`<div class="empty"><h3>لا يوجد طلاب في هذه الحلقة</h3><p>أضف طلابك مع مرحلتهم ومقررهم اليومي بالأسطر، ثم سجّل تسميعهم كل يوم.</p><button class="btn pri" type="button" data-act="add-student">${I.user}إضافة طالب</button></div>`}
   </main>`;
@@ -1133,6 +1142,7 @@ function waReportText(m,r){
   else L.push('لا يوجد حفظ مسجّل هذا الأسبوع.');
   if(r.recDays)L.push('مجموع أخطاء الحفظ: '+r.errs);
   if(r.thuDays)L.push('حضور الخميس: '+(r.thuAbs?(r.thuPres+' من '+r.thuDays):'حضر'));
+  examNotes(r,m).forEach(x=>L.push('📝 '+x));
   L.push('');L.push('حلقات أبوبكر الصديق');
   return L.join('\n');
 }
@@ -1147,6 +1157,8 @@ function waGeneralText(m){
     rows.forEach(r=>L.push((r.complete?'✅ ':'⚠️ ')+r.st.name+' — '+r.done+' من '+r.req+' سطر'+(r.complete?(r.extra?' (زاد '+lineTxt(r.extra)+')':''):' — التأخر: '+lineTxt(r.short))+(r.absent?' — غاب '+dayTxt(r.absent):'')));
     if(m.thuDays){L.push('');const na=rows.filter(r=>r.thuAbs>0);L.push('حضور الخميس: '+rows.reduce((a,r)=>a+r.thuPres,0)+' من '+rows.length*m.thuDays+(na.length?' — الغائبون: '+na.map(r=>r.st.name).join('، '):''))}
   }
+  const exr=rows.filter(r=>examNotes(r,m).length);
+  if(exr.length){L.push('');L.push('📝 الاختبار الشهري:');exr.forEach(r=>{m.days.forEach(({k})=>{const e=examOf(r.st,k);if(e&&isExam(m.h,k)&&k<=today())L.push('• '+r.st.name+' — '+numTxt(examTot(e))+' من 30')})})}
   L.push('');L.push('حلقات أبوبكر الصديق');
   return L.join('\n');
 }
@@ -1206,7 +1218,8 @@ function dayStatusTxt(c){
 }
 function weekNotes(r,m){
   const n=[],st=r.st;
-  if(!m.counted)return['لا توجد أيام محسوبة في هذا الأسبوع.'];
+  const exn=examNotes(r,m);
+  if(!m.counted)return['لا توجد أيام محسوبة في هذا الأسبوع.',...exn];
   if(r.complete)n.push(r.extra>0?'أكمل مقرر الأسبوع وزاد عليه '+lineTxt(r.extra)+'.':'أكمل مقرر الأسبوع كاملاً.');
   else n.push('لم يكمل مقرر الأسبوع، وينقصه '+lineTxt(r.short)+' ليُكمله، أي ما يعادل '+numTxt(r.short/st.quota)+' يوم من مقرره اليومي.');
   if(r.absent){const ds=r.cells.filter(c=>c.t==='absent').map(c=>DAYS[fromKey(c.k).getDay()]).join('، ');n.push('سُجّل غائباً '+dayTxt(r.absent)+' ('+ds+').')}
@@ -1215,6 +1228,7 @@ function weekNotes(r,m){
   if(r.thuDays)n.push(r.thuAbs?'حضر يوم الخميس '+r.thuPres+' من '+r.thuDays+' (غاب '+dayTxt(r.thuAbs)+' فحُسب عليه مقرر ذلك اليوم).':'حضر '+(r.thuDays>1?'جميع أيام الخميس ('+r.thuDays+').':'يوم الخميس.'));
   if(r.recDays)n.push('حفظ '+lineTxt(r.done)+' (ما يعادل '+numTxt(r.pages)+' صفحة)، ومجموع أخطائه في الحفظ '+r.errs+' بمعدل '+numTxt(r.errs/r.recDays)+' في اليوم.');
   if(r.wk.last)n.push('مراجعة الأسبوع: '+recTxt(r.wk.last.r)+' (الأخطاء: '+(r.wk.last.r.err||0)+').');
+  n.push(...exn);
   return n;
 }
 const stClass=k=>['on','ahead','late','bad','none'].includes(k)?'st-'+k:k;
@@ -1668,6 +1682,52 @@ function pointsView(hid){
   draw();
 }
 
+/* ================= monthly exam ================= */
+const EXN=['الأول','الثاني','الثالث'];
+const isExam=(h,k)=>!!(h.ex&&h.ex[k]);
+const examOf=(st,k)=>{const e=st.rec&&st.rec[k]&&st.rec[k].exam;return Array.isArray(e)?e:null};
+const examTot=e=>e?Math.round(e.reduce((a,v)=>a+(Number(v)||0),0)*10)/10:0;
+const examTxt=e=>e?EXN.map((n,i)=>(e[i]===''||e[i]==null?'—':numTxt(Number(e[i])))+'').join(' + ')+' = '+numTxt(examTot(e))+' من 30':'';
+function examHtml(st,d){
+  const e=examOf(st,d)||['','',''];
+  return `<div class="exam"><b>الاختبار الشهري</b>
+    <div class="exam-in">${[0,1,2].map(i=>`<label>السؤال ${EXN[i]}<input type="number" inputmode="decimal" min="0" max="10" step="0.5" value="${e[i]}" placeholder="من 10" data-exq="${i}" data-sid="${st.id}"></label>`).join('')}</div>
+    <div class="exam-t">المجموع: <b id="ext-${st.id}">${numTxt(examTot(e))}</b> من 30</div></div>`;
+}
+function examNotes(r,m){
+  const out=[];
+  m.days.forEach(({k})=>{if(k>today())return;const e=examOf(r.st,k);if(e&&isExam(m.h,k))out.push('الاختبار الشهري ('+dateTxt(k)+'): '+EXN.map((n,i)=>'السؤال '+n+' '+(e[i]===''||e[i]==null?'—':numTxt(Number(e[i])))).join('، ')+'. المجموع '+numTxt(examTot(e))+' من 30.')});
+  return out;
+}
+$('#app').addEventListener('input',e=>{
+  const t=e.target;if(t.dataset.exq===undefined)return;
+  const h=getH(UI.hid),st=h&&getS(h,t.dataset.sid);if(!st)return;
+  let v=t.value.trim();
+  if(v!==''){v=Number(v.replace(',','.'));if(!isFinite(v)||v<0)v=0;if(v>10){v=10;t.value='10'}}
+  st.rec=st.rec||{};const d=UI.sel;st.rec[d]=st.rec[d]||{};
+  const a=(st.rec[d].exam||['','','']).slice();a[Number(t.dataset.exq)]=v;
+  if(a.every(x=>x===''))delete st.rec[d].exam;else st.rec[d].exam=a;
+  persist();
+  const o=$('#ext-'+st.id);if(o)o.textContent=numTxt(examTot(st.rec[d].exam));
+});
+function examSheet(){
+  const h=getH(UI.hid);
+  const el=sheet('الاختبار الشهري','ثلاثة أسئلة، كل سؤال من 10 درجات (المجموع 30)','','');
+  const body=$('.sheet-b',el);
+  const draw=()=>{
+    const ds=Object.keys(h.ex||{}).sort().reverse();
+    body.innerHTML=`<p class="note">حدّد اليوم الذي يكون فيه الاختبار، وفي ذلك اليوم تظهر خانات الدرجات داخل بطاقة كل طالب.</p>
+      <div class="fld"><label for="ex-d">يوم الاختبار</label><input id="ex-d" class="inp" type="date" value="${UI.sel}"></div>
+      <button class="btn pri block" type="button" id="ex-add">تحديد يوم الاختبار</button>
+      ${ds.map(k=>`<div class="card" style="margin-top:10px"><div class="drow-top"><b>${dayLabelY(k)}</b><span><button class="btn soft sm" type="button" data-go="${k}">فتح اليوم</button> <button class="btn danger sm" type="button" data-del="${k}">إلغاء</button></span></div>
+        ${h.students.map(st=>{const e=examOf(st,k);return `<div class="su-row"><span class="su-n">${esc(st.name)}</span><span class="note">${e?numTxt(examTot(e))+' / 30':'لم يُسجَّل'}</span></div>`}).join('')}</div>`).join('')}`;
+    $('#ex-add',body).onclick=()=>{const k=$('#ex-d',body).value;if(!k)return;h.ex=h.ex||{};h.ex[k]=1;persist();draw();render();toast('تم تحديد يوم الاختبار')};
+    $$('[data-go]',body).forEach(b=>b.onclick=()=>{UI.sel=b.dataset.go;closeTop();render({center:true})});
+    $$('[data-del]',body).forEach(b=>confirmBtn(b,'تأكيد الإلغاء',()=>{delete h.ex[b.dataset.del];persist();draw();render()}));
+  };
+  draw();
+}
+
 /* ================= cloud: teacher link + supervisor ================= */
 const HQ_LS='halaqat-hq-v1',SUP_LS='halaqat-sup-v1';
 const lsGet=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}};
@@ -1791,7 +1851,8 @@ function supView(){
 function supHal(hs){
   return hs.map(h=>`<article class="hcard"><div class="hcard-top"><b class="hcard-name" style="cursor:default">${esc(h.name)}</b></div>
     <div class="hcard-meta"><span class="pill">المعلم: <b>${esc(h.tname)}</b></span><span class="pill">المرحلة: <b>${esc(h.stage||'')}</b></span><span class="pill">الطلاب: <b>${h.students.length}</b></span></div>
-    <div class="hcard-meta"><button class="btn soft sm" type="button" data-act="report" data-id="${h.id}">${I.chart}التقرير الأسبوعي</button><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button></div></article>`).join('')
+    <div class="hcard-meta"><button class="btn soft sm" type="button" data-act="report" data-id="${h.id}">${I.chart}التقرير الأسبوعي</button><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button></div>
+    <button class="btn wa block" type="button" data-act="sup-parents" data-id="${h.id}">${I.wa}إرسال تقارير الطلاب لأولياء الأمور</button></article>`).join('')
     +`<p class="note">آخر مزامنة: ${SU.data.teachers.map(t=>esc(t.name)+' — '+ago(t.at)).join(' · ')}</p>`;
 }
 function supAtt(hs){
@@ -1827,6 +1888,26 @@ function supWaAll(){
     const k=a.dataset.k,m=SU.marks[k];if(m&&!m.n){m.n=1;supSave({[k]:{s:'a',n:1}})}
   });
 }
+const SENT_LS='halaqat-sent-v1';
+function supParents(hid){
+  const h=getH(hid);let wk=weekStartOf(h,today());const sent=lsGet(SENT_LS,{});
+  const el=sheet('تقارير الطلاب لأولياء الأمور',h.name,'','');
+  const body=$('.sheet-b',el);
+  const draw=()=>{
+    const m=weekModel(h,wk),cur=weekStartOf(h,today());
+    body.innerHTML=`<div class="wk-nav" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px"><button class="btn sm" type="button" data-w="-1">الأسبوع السابق</button><b style="font-size:14px;text-align:center">${rangeTxt(wk)}</b><button class="btn sm" type="button" data-w="1" ${wk>=cur?'disabled':''}>التالي</button></div>
+      <p class="note">اضغط «إرسال» بجانب الطالب فيفتح واتساب برقمك على ولي الأمر والتقرير جاهز، ثم اضغط إرسال داخل واتساب.</p>
+      ${m.rows.map(r=>{const n=normPhone(r.st.phone),ok=phoneOk(n),k=h.id+':'+r.st.id+':'+wk,done=sent[k];
+        return `<div class="wa-row"><div><b>${esc(r.st.name)}</b><small>${ok?'+'+n:'لا يوجد رقم لولي الأمر'}</small></div>
+        ${ok?`<a class="btn ${done?'':'wa'} sm" target="_blank" rel="noopener" data-k="${k}" href="https://wa.me/${n}?text=${encodeURIComponent(waReportText(m,r))}">${I.wa}${done?'أُرسل':'إرسال'}</a>`:'<button class="btn sm" type="button" disabled>لا رقم</button>'}</div>`}).join('')||'<p class="note">لا يوجد طلاب.</p>'}`;
+  };
+  draw();
+  el.addEventListener('click',e=>{
+    const w=e.target.closest('[data-w]');
+    if(w&&!w.disabled){wk=key(addDays(fromKey(wk),7*Number(w.dataset.w)));return draw()}
+    const a=e.target.closest('a[data-k]');if(a){sent[a.dataset.k]=1;lsSet(SENT_LS,sent);a.classList.remove('wa');a.lastChild.textContent='أُرسل'}
+  });
+}
 function supSettings(){
   const D=SU.data;
   const el=sheet('إعدادات المشرف','','','');
@@ -1859,6 +1940,8 @@ $('#app').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act;
   if(a==='hq')return hqSheet();
+  if(a==='exam')return examSheet();
+  if(a==='ios')return sheet('تثبيت التطبيق على الآيفون','يلزم فتح الرابط من متصفح سفاري (Safari)',`<ol class="notes" style="line-height:2"><li>افتح رابط التطبيق في <b>Safari</b> وليس داخل واتساب أو متصفح آخر.</li><li>اضغط زر المشاركة <b>⬆︎</b> أسفل الشاشة.</li><li>اختر <b>إضافة إلى الشاشة الرئيسية</b>.</li><li>اضغط <b>إضافة</b>، فتظهر أيقونة التطبيق ويعمل بملء الشاشة وبدون إنترنت.</li></ol><p class="note">بعد التثبيت افتح التطبيق من الأيقونة دائماً، ولا تحذفه قبل أخذ «نسخة احتياطية».</p>`,'');
   if(a==='upd')return checkUpd();
   if(!a.startsWith('sup-'))return;
   switch(a){
@@ -1882,6 +1965,7 @@ $('#app').addEventListener('click',async e=>{
       if(m&&!m.n){m.n=1;render();supSave({[k]:{s:'a',n:1}})}return;
     }
     case 'sup-wa-all':return supWaAll();
+    case 'sup-parents':return supParents(b.dataset.id);
   }
 });
 document.addEventListener('change',e=>{if(e.target.id==='su-d'&&e.target.value)supGoto(e.target.value)});
@@ -1906,6 +1990,7 @@ if(HQ&&HQ.code&&HQ.dirty)setTimeout(()=>hqPush(),3000);
 
 /* ================= install (Android / Chrome) ================= */
 let deferredInstall=null;
+function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
 const isStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
 function canInstall(){return !!deferredInstall&&!isStandalone()}
 async function doInstall(){
