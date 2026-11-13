@@ -531,23 +531,25 @@ const isOff=(h,k)=>h.off&&h.off[k]!==undefined?!!h.off[k]:defOff(h,k);
 function toggleOff(h,k){h.off=h.off||{};const want=!isOff(h,k);if(want===defOff(h,k))delete h.off[k];else h.off[k]=want?1:0}
 function weekStartOf(h,k){const d=fromKey(k),ws=h.ws===6?6:0;return key(addDays(d,-((d.getDay()-ws+7)%7)))}
 const weekKeys=sk=>{const s=fromKey(sk);return Array.from({length:7},(_,i)=>key(addDays(s,i)))};
+const dayTouched=(h,k)=>h.students.some(st=>st.rec&&st.rec[k]&&Object.keys(st.rec[k]).length>0);
 const dayHasAny=(h,k)=>h.students.some(st=>hasAny(st,k)||recOf(st,k,'abs'));
 /* حالة كل يوم من الأسبوع: counted محسوب، off إجازة، pending اليوم ولم يُسجَّل فيه شيء بعد، future لم يأتِ */
 function weekDayStates(h,sk){
   const t=today();
   return weekKeys(sk).map(k=>{
-    let s;
+    let s,auto=0;
     if(k>t)s='future';
     else if(isOff(h,k))s='off';
+    else if(k<t&&!dayTouched(h,k)){s='off';auto=1}   /* يوم لم يُسجَّل فيه شيء لأي طالب: لا يُحسب نقصاً */
     else if(isThu(k))s=(k===t&&!h.students.some(st=>recOf(st,k,'thu')))?'pending':'att';
     else if(k===t&&!dayHasAny(h,k))s='pending';
     else s='counted';
-    return{k,s};
+    return{k,s,auto};
   });
 }
 function studentWeek(h,st,days){
   const t=today();
-  const cells=days.map(({k,s})=>{
+  const cells=days.map(({k,s,auto})=>{
     if(k>t)return{k,s,t:'future'};
     if(isThu(k)&&s==='att')return{k,s,t:recOf(st,k,'thu')?'att':'noatt'};
     if(isThu(k)&&s==='pending')return{k,s,t:'pending'};
@@ -559,7 +561,7 @@ function studentWeek(h,st,days){
       return{k,s,t:hi.status,lines:hi.lines,err:r.err||0,r};
     }
     if(hi)return{k,s,t:hi.status,lines:hi.lines,err:r.err||0,r,bonus:true};
-    return{k,s,t:s};
+    return{k,s,t:s,auto};
   });
   const counted=cells.filter(c=>c.s==='counted').length;
   const excused=cells.filter(c=>c.excused).length,thuMiss=cells.filter(c=>c.t==='noatt').length;
@@ -1136,7 +1138,7 @@ function waReportText(m,r){
     L.push('المطلوب: '+lineTxt(r.req)+' · المنجز: '+lineTxt(r.done)+(r.complete?(r.extra?' · الزيادة: '+lineTxt(r.extra):''):' · التأخر: '+lineTxt(r.short)));
     L.push('');
     L.push('الأيام:');
-    r.cells.forEach(c=>{if(c.t==='future'||c.t==='pending')return;const ci=cellInfo(c);L.push('• '+DAYS[fromKey(c.k).getDay()]+': '+(c.t==='off'?'إجازة':c.t==='att'?'حضر':c.t==='noatt'?'غائب':c.t==='absent'?'غائب':c.t==='nolog'?'لم يسمّع':c.t==='weekrev'?'مراجعة الأسبوع (معفى من الحفظ)':c.t==='review'?'مراجعة فقط':lineTxt(c.lines)))});
+    r.cells.forEach(c=>{if(c.t==='future'||c.t==='pending'||c.auto)return;const ci=cellInfo(c);L.push('• '+DAYS[fromKey(c.k).getDay()]+': '+(c.t==='off'?'إجازة':c.t==='att'?'حضر':c.t==='noatt'?'غائب':c.t==='absent'?'غائب':c.t==='nolog'?'لم يسمّع':c.t==='weekrev'?'مراجعة الأسبوع (معفى من الحفظ)':c.t==='review'?'مراجعة فقط':lineTxt(c.lines)))});
     L.push('');
   }
   if(r.first)L.push('بدأ من '+posTxt(r.first.r.s1,r.first.r.a1)+' ووصل إلى '+posTxt(r.last.r.s2,r.last.r.a2));
@@ -1201,7 +1203,7 @@ function cellInfo(c){
   if(c.t==='nolog')return{v:'لم يسمّع',k:'none'};
   if(c.t==='weekrev')return{v:'مراجعة',k:'ahead'};
   if(c.t==='review')return{v:'مراجعة',k:'none'};
-  if(c.t==='off')return{v:'إجازة',k:'off'};
+  if(c.t==='off')return{v:c.auto?'—':'إجازة',k:'off'};
   if(c.t==='future'||c.t==='pending')return{v:'—',k:'off'};
   return{v:String(c.lines),k:c.t};
 }
@@ -1212,7 +1214,7 @@ function dayStatusTxt(c){
   if(c.t==='nolog')return'لم يسمّع';
   if(c.t==='weekrev')return'مراجعة الأسبوع';
   if(c.t==='review')return'مراجعة فقط';
-  if(c.t==='off')return'إجازة';
+  if(c.t==='off')return c.auto?'بلا تسجيل':'إجازة';
   if(c.t==='future')return'لم يأتِ';
   if(c.t==='pending')return'لم يُسجَّل';
   return STAT[c.t]||'';
@@ -1245,8 +1247,8 @@ function reportView(hid){
 
   function chipsHtml(m){
     return m.days.map(d=>{
-      const dt=fromKey(d.k),cls={counted:'',att:' att',off:' off',pending:' pend',future:' fut'}[d.s],lab={counted:'حلقة',att:'حضور',off:'إجازة',pending:'اليوم',future:isThu(d.k)?'حضور':'—'}[d.s];
-      return `<button class="dchip${cls}" type="button" data-off="${d.k}"${d.s==='future'?' disabled':''} aria-pressed="${d.s==='off'}" aria-label="${dateTxt(d.k)}، ${lab}"><small>${WD_SHORT[dt.getDay()]}</small><i>${dt.getDate()}</i><em>${lab}</em></button>`;
+      const dt=fromKey(d.k),cls={counted:'',att:' att',off:' off',pending:' pend',future:' fut'}[d.s],lab={counted:'حلقة',att:'حضور',off:d.auto?'بلا تسجيل':'إجازة',pending:'اليوم',future:isThu(d.k)?'حضور':'—'}[d.s];
+      return `<button class="dchip${cls}" type="button" data-off="${d.k}"${d.s==='future'||d.auto?' disabled':''} aria-pressed="${d.s==='off'}" aria-label="${dateTxt(d.k)}، ${lab}"><small>${WD_SHORT[dt.getDay()]}</small><i>${dt.getDate()}</i><em>${lab}</em></button>`;
     }).join('');
   }
   function genHtml(m){
