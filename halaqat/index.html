@@ -1236,7 +1236,7 @@ const stClass=k=>['on','ahead','late','bad','none'].includes(k)?'st-'+k:k;
 
 function reportView(hid){
   const h=getH(hid);if(!h)return;
-  const RS={wk:weekStartOf(h,today()),mo:moOf(today()),tab:'general',sid:h.students[0]?h.students[0].id:null};
+  const RS={wk:weekStartOf(h,today()),mo:curMo(h),tab:'general',sid:h.students[0]?h.students[0].id:null};
   const el=openLayer('','report');
   el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','التقرير الأسبوعي');
   const cur=()=>weekStartOf(h,today());
@@ -1310,7 +1310,7 @@ function reportView(hid){
     const isCur=RS.wk>=cur(),canExp=isMo?!!(mm.rows.length&&mm.counted):!!(m.rows.length&&m.counted&&(RS.tab==='general'||RS.sid));
     el.innerHTML=`<div class="rep-in">
       <div class="rep-hdr"><button class="ibtn plain" type="button" data-x aria-label="إغلاق التقرير">${I.back}</button><div><h2>${isMo?'التقرير الشهري':'التقرير الأسبوعي'}</h2><p>${esc(h.name)}</p></div></div>
-      ${isMo?`<div class="wkbar"><button class="btn sm" type="button" data-mo="-1">${I.back}<span>السابق</span></button><div class="wkr"><b>${esc(moTxt(RS.mo))}</b>${RS.mo>=moOf(today())?'<small>هذا الشهر</small>':'<button class="lnk" type="button" data-mo="cur">العودة لهذا الشهر</button>'}</div><button class="btn sm" type="button" data-mo="1"${RS.mo>=moOf(today())?' disabled':''}><span>التالي</span><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>`:''}
+      ${isMo?`<div class="wkbar"><button class="btn sm" type="button" data-mo="-1">${I.back}<span>السابق</span></button><div class="wkr"><b>${esc(moTxt(RS.mo))}</b>${RS.mo>=curMo(h)?'<small>آخر 4 أسابيع</small>':'<button class="lnk" type="button" data-mo="cur">العودة لآخر شهر</button>'}</div><button class="btn sm" type="button" data-mo="1"${RS.mo>=curMo(h)?' disabled':''}><span>التالي</span><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>`:''}
       <div class="wkbar"${isMo?' hidden':''}>
         <button class="btn sm" type="button" data-wk="-1">${I.back}<span>السابق</span></button>
         <div class="wkr"><b>${esc(rangeTxt(RS.wk))}</b>${isCur?'<small>هذا الأسبوع</small>':'<button class="lnk" type="button" data-wk="cur">العودة لهذا الأسبوع</button>'}</div>
@@ -1345,7 +1345,7 @@ function reportView(hid){
     const w=e.target.closest('[data-wk]');
     if(w){const v=w.dataset.wk;if(v==='cur')RS.wk=cur();else{const n=key(addDays(fromKey(RS.wk),7*Number(v)));if(n>cur())return;RS.wk=n}return draw()}
     const mo=e.target.closest('[data-mo]');
-    if(mo&&!mo.disabled){const v=mo.dataset.mo;if(v==='cur')RS.mo=moOf(today());else{const d=fromKey(RS.mo+'-01'),n=key(new Date(d.getFullYear(),d.getMonth()+Number(v),1)).slice(0,7);if(n>moOf(today()))return;RS.mo=n}return draw()}
+    if(mo&&!mo.disabled){const v=mo.dataset.mo;if(v==='cur')RS.mo=curMo(h);else{const n=key(addDays(fromKey(RS.mo),28*Number(v)));if(n>curMo(h))return;RS.mo=n}return draw()}
     const mw=e.target.closest('[data-mwa]');
     if(mw){const mm=monthModel(h,RS.mo),row=mm.rows.find(r=>r.st.id===mw.dataset.mwa);if(!row)return;const n=normPhone(row.st.phone);if(!phoneOk(n)){toast('أضف رقم ولي الأمر من «بيانات الطالب» أولاً');return}return waOpen(n,waMonthText(mm,row))}
     const t=e.target.closest('[data-tab]');if(t){RS.tab=t.dataset.tab;return draw()}
@@ -1366,12 +1366,14 @@ function reportView(hid){
 }
 
 /* ================= monthly report ================= */
-const moTxt=ym=>{const [y,m]=ym.split('-').map(Number);return MONTHS[m-1]+' '+y};
-const moOf=k=>k.slice(0,7);
+/* «الشهر» = آخر 4 أسابيع تسميع (28 يوماً) تبدأ من بداية أسبوع الحلقة */
+const moEnd=ws=>key(addDays(fromKey(ws),27));
+const moTxt=ws=>{const a=fromKey(ws),b=fromKey(moEnd(ws));return a.getDate()+' '+MONTHS[a.getMonth()]+(a.getFullYear()!==b.getFullYear()?' '+a.getFullYear():'')+' إلى '+b.getDate()+' '+MONTHS[b.getMonth()]+' '+b.getFullYear()};
+const curMo=h=>key(addDays(fromKey(weekStartOf(h,today())),-21));
 function monthModel(h,ym){
-  const first=ym+'-01',d0=fromKey(first),last=key(new Date(d0.getFullYear(),d0.getMonth()+1,0));
-  let ws=weekStartOf(h,first);const days=[];
-  while(ws<=last){weekDayStates(h,ws).forEach(x=>{if(x.k>=first&&x.k<=last)days.push(x)});ws=key(addDays(fromKey(ws),7))}
+  const first=ym,last=moEnd(ym);
+  let ws=first;const days=[];
+  for(let i=0;i<4;i++){weekDayStates(h,ws).forEach(x=>days.push(x));ws=key(addDays(fromKey(ws),7))}
   const rows=h.students.map(st=>{
     const r=studentWeek(h,st,days);
     r.exams=days.filter(d=>d.k<=today()&&isExam(h,d.k)&&examOf(st,d.k)).map(d=>({k:d.k,e:examOf(st,d.k)}));
@@ -1411,7 +1413,7 @@ function waMonthGeneral(m){
 }
 function monthHtml(m,noStudents){
   if(!m.rows.length)return noStudents;
-  if(!m.counted)return '<div class="empty"><h3>لا توجد أيام محسوبة في هذا الشهر</h3><p>لم يبدأ التسجيل في هذا الشهر بعد، أو أن كل أيامه إجازة.</p></div>';
+  if(!m.counted)return '<div class="empty"><h3>لا توجد أيام محسوبة في هذه الفترة</h3><p>لم يبدأ التسجيل في هذه الفترة بعد، أو أن كل أيامه إجازة.</p></div>';
   const rows=m.rows,comp=rows.filter(r=>r.complete).length,total=rows.reduce((a,r)=>a+r.done,0);
   const topL=Math.max(0,...rows.map(r=>r.done)),tops=topL>0?rows.filter(r=>r.done===topL):[];
   const ex=rows.filter(r=>r.exams.length);
