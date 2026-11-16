@@ -504,8 +504,8 @@ const reachTxt=st=>{const r=reachOf(st);return 'سورة '+SN[r.s-1]+(r.a?' · �
 const FLAGS=['shm','init','thu','abs','exam'];
 const hasAny=(st,d)=>!!(st.rec&&st.rec[d]&&Object.keys(st.rec[d]).some(k=>!FLAGS.includes(k)));
 /* ===== النقاط: تُحسب مباشرة من التسجيلات فتتحدّث مع كل تسميع ===== */
-const PTS={hifz:1,yesterday:1,nas:1,week:2,shm:1,init:1,thu:3};
-const PT_LAB={hifz:'الحفظ',yesterday:'مراجعة أمس',nas:'مراجعة الناس',week:'مراجعة الأسبوع',shm:'الشماغ',init:'مبادرة',thu:'حضور الخميس'};
+const PTS={hifz:1,yesterday:1,nas:1,week:2,exam:2,shm:1,init:1,thu:3};
+const PT_LAB={hifz:'الحفظ',yesterday:'مراجعة أمس',nas:'مراجعة الناس',week:'مراجعة الأسبوع',exam:'الاختبار الشهري',shm:'الشماغ',init:'مبادرة',thu:'حضور الخميس'};
 const ptsTxt=n=>n===1?'نقطة واحدة':n===2?'نقطتان':n+(n>=3&&n<=10?' نقاط':' نقطة');
 function ptsOf(st,from,to){
   const by={};let tot=0;
@@ -555,6 +555,7 @@ function studentWeek(h,st,days){
     if(isThu(k)&&s==='pending')return{k,s,t:'pending'};
     const r=recOf(st,k,'hifz'),hi=hifzInfo(st,k);
     if(s==='counted'){
+      if(!hi&&examOf(st,k))return{k,s,t:'weekrev',lines:0,r:null,err:0,excused:true,exam:true};   /* من اختُبر معفى من الحفظ */
       if(!hasAny(st,k))return{k,s,t:recOf(st,k,'abs')?'absent':'nolog',lines:0};
       if(!hi&&recOf(st,k,'week'))return{k,s,t:'weekrev',lines:0,r:null,err:0,excused:true};
       if(!hi)return{k,s,t:'review',lines:0,r:null,err:0};
@@ -707,6 +708,7 @@ function studentHtml(h,st){
   let badge;
   if(thu)badge=recOf(st,d,'thu')?`<span class="badge st-on">حضر</span>`:`<span class="badge st-none">لم يحضر</span>`;
   else if(hi)badge=`<span class="badge st-${hi.status}">${STAT[hi.status]}</span>`;
+  else if(examOf(st,d))badge=`<span class="badge st-ahead">اختبار شهري</span>`;
   else if(recOf(st,d,'week'))badge=`<span class="badge st-ahead">مراجعة الأسبوع</span>`;
   else if(hasAny(st,d))badge=`<span class="badge st-none">بلا حفظ</span>`;
   else if(recOf(st,d,'abs'))badge=`<span class="badge st-absent">غائب</span>`;
@@ -1201,7 +1203,7 @@ function cellInfo(c){
   if(c.t==='absent'||c.t==='noatt')return{v:'غائب',k:'absent'};
   if(c.t==='att')return{v:'حضر',k:'on'};
   if(c.t==='nolog')return{v:'لم يسمّع',k:'none'};
-  if(c.t==='weekrev')return{v:'مراجعة',k:'ahead'};
+  if(c.t==='weekrev')return{v:c.exam?'اختبار':'مراجعة',k:'ahead'};
   if(c.t==='review')return{v:'مراجعة',k:'none'};
   if(c.t==='off')return{v:c.auto?'—':'إجازة',k:'off'};
   if(c.t==='future'||c.t==='pending')return{v:'—',k:'off'};
@@ -1212,7 +1214,7 @@ function dayStatusTxt(c){
   if(c.t==='att')return'حضر';
   if(c.t==='noatt')return'غائب';
   if(c.t==='nolog')return'لم يسمّع';
-  if(c.t==='weekrev')return'مراجعة الأسبوع';
+  if(c.t==='weekrev')return c.exam?'اختبار شهري':'مراجعة الأسبوع';
   if(c.t==='review')return'مراجعة فقط';
   if(c.t==='off')return c.auto?'بلا تسجيل':'إجازة';
   if(c.t==='future')return'لم يأتِ';
@@ -1298,7 +1300,7 @@ function reportView(hid){
     out+=`<section class="card sec"><h3>مسار الحفظ</h3>${path}</section>`;
     out+=`<section class="card sec"><h3>الحفظ يوماً بيوم</h3>${r.cells.map(c=>{
       const bc=c.t==='weekrev'?'st-ahead':c.t==='att'?'st-on':c.t==='noatt'||c.t==='absent'?'st-absent':c.r||c.bonus?'st-'+c.t:'st-none';
-      const det=c.r?`${esc(recTxt(c.r))}<br>${lineTxt(c.lines)} · الأخطاء: ${c.err}`:esc({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس (حُسب عليه مقرر اليوم)',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم',off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[c.t]||'');
+      const det=c.r?`${esc(recTxt(c.r))}<br>${lineTxt(c.lines)} · الأخطاء: ${c.err}`:esc({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس (حُسب عليه مقرر اليوم)',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:(c.exam?'اختُبر في هذا اليوم فلا يُطلب منه حفظ ولا مراجعة أمس':'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم'),off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[c.t]||'');
       return `<div class="drow${c.t==='off'||c.t==='future'||c.t==='pending'?' dim':''}"><div class="drow-top"><b>${dateTxt(c.k)}</b><span class="badge ${bc}">${dayStatusTxt(c)}</span></div><p>${det}</p></div>`}).join('')}</section>`;
     const rv=(t,x)=>`<div class="stat"><span>${t}</span><b>${x.n?dayTxt(x.n):'—'}</b><small>${x.n?'الأخطاء: '+x.e:'لم يُسجَّل'}</small></div>`;
     out+=`<section class="card sec"><h3>المراجعة</h3><div class="revs">${rv('مراجعة أمس',r.yest)}${rv('مراجعة الناس',r.nas)}${rv('مراجعة الأسبوع',r.wk)}</div></section>`;
@@ -1582,7 +1584,7 @@ function paintReport(c,kind,m,row,Hf){
   { const L=r.cells.map(cc=>{
       const det=[];
       if(cc.r){det.push(recTxt(cc.r));det.push(lineTxt(cc.lines)+' · الأخطاء: '+cc.err)}
-      else det.push({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس (حُسب عليه مقرر اليوم)',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم',off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[cc.t]||'');
+      else det.push({absent:'سُجّل غائباً في هذا اليوم',nolog:'حاضر ولم يسمّع في هذا اليوم',att:'يوم حضور (لا تسميع)',noatt:'لم يحضر يوم الخميس (حُسب عليه مقرر اليوم)',review:'سمّع مراجعة فقط ولم يُسجَّل له حفظ',weekrev:(cc.exam?'اختُبر في هذا اليوم فلا يُطلب منه حفظ ولا مراجعة أمس':'سمّع مراجعة الأسبوع فلا يُطلب منه حفظ في هذا اليوم'),off:'يوم إجازة',future:'لم يأتِ بعد',pending:'لم يُسجَّل شيء في الحلقة اليوم بعد'}[cc.t]||'');
       return{cc,lines:det.flatMap(d=>P.wrap(d,IWc,26,500))};
     });
     const hh=92+L.reduce((a,x)=>a+66+x.lines.length*36+22,0);
@@ -1777,7 +1779,7 @@ function pointsView(hid){
         ${[['day','يوم'],['week','الأسبوع'],['month','الشهر'],['all','الكل']].map(([k,v])=>`<button type="button" role="tab" data-p="${k}" aria-selected="${PS.p===k}">${v}</button>`).join('')}
       </div>
       <div class="card"><b>${lab}</b><div class="note" style="margin-top:4px">مجموع نقاط الحلقة: ${ptsTxt(sum)}</div>
-        <div class="note" style="margin-top:4px">الحفظ والمراجعة: نقطة لكل تسميع (مراجعة الأسبوع نقطتان) · الشماغ نقطة · المبادرة نقطة · حضور الخميس 3 نقاط.</div></div>
+        <div class="note" style="margin-top:4px">الحفظ والمراجعة: نقطة لكل تسميع (مراجعة الأسبوع والاختبار الشهري نقطتان) · الشماغ نقطة · المبادرة نقطة · حضور الخميس 3 نقاط.</div></div>
       ${PS.p==='day'?`<div class="daypick"><button class="btn sm" type="button" data-dd="-1" aria-label="اليوم السابق">${I.back}</button><input type="date" id="pt-d" class="inp" value="${PS.d}"><button class="btn sm" type="button" data-dd="1" aria-label="اليوم التالي"><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>`:''}
       ${SUP?'':`<button class="btn pri block" type="button" data-site>${I.up}${PS.p==='day'?'رفع نقاط هذا اليوم إلى الموقع':'رفع النقاط إلى الموقع'}</button>`}
       ${rows.length?rows.map(r=>`<article class="pt-row">
