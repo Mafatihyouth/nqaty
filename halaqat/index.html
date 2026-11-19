@@ -963,9 +963,11 @@ function lastHifzBefore(st,d){
 }
 function prefillPos(st,d,kind){
   const last=lastHifzBefore(st,d);
-  if(kind==='yesterday'||kind==='nas'){
-    if(kind==='nas'||!last)return null;
-    const r=last.r;return{s1:r.s1,a1:r.a1,s2:r.s2,a2:r.a2,hint:'تم وضع مقطع آخر حفظ سمّعه ('+dateTxt(last.d)+') للمراجعة، عدّله إن لزم.'};
+  if(kind==='yesterday'){
+    const rs=Object.keys(st.rec||{}).filter(k=>k<d&&st.rec[k].hifz).sort().slice(-3).map(k=>({d:k,r:st.rec[k].hifz}));
+    if(!rs.length)return null;
+    const f=rs[0].r,l=rs[rs.length-1].r;
+    return{s1:f.s1,a1:f.a1,s2:l.s2,a2:l.a2,hint:'تم وضع مقطع آخر '+(rs.length===1?'تسميع':rs.length===2?'تسميعتين':'ثلاث تسميعات')+' سمّعها الطالب للمراجعة، عدّله إن لزم.'};
   }
   if(kind!=='hifz')return null;
   const base=last?{s:last.r.s2,a:last.r.a2}:{s:st.rs,a:st.ra||0};
