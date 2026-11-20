@@ -454,7 +454,7 @@ function fromDocs(docs){
 function setSync(s){UI.sync=s;const el=$('#sync');if(el){el.className='sync '+s;el.lastChild.textContent=SYNC_TXT[s]}}
 const SYNC_TXT={ok:'محفوظ',saving:'جارٍ الحفظ…',local:'محفوظ على هذا الجهاز',error:'تعذّر الحفظ السحابي',nostore:'المتصفح يمنع الحفظ'};
 function persist(){
-  if(SUP)return;
+  if(SUP){supPersist();return}
   S.rev=Date.now();
   try{localStorage.setItem(LS,JSON.stringify(S));LSOK=true}catch(e){LSOK=false}
   if(col){setSync('saving');clearTimeout(timer);timer=setTimeout(flush,600)}
@@ -820,7 +820,7 @@ $('#app').addEventListener('click',e=>{
     case 'add-halaqa':return halaqaSheet();
     case 'edit-halaqa':return halaqaSheet(b.dataset.id);
     case 'open-halaqa':UI.screen='halaqa';UI.hid=b.dataset.id;UI.open=null;UI.sel=today();window.scrollTo(0,0);return render({keepScroll:false,center:true});
-    case 'back':UI.screen='halaqat';UI.hid=null;UI.open=null;return render({keepScroll:false});
+    case 'back':UI.screen=SUP?'sup':'halaqat';UI.hid=null;UI.open=null;return render({keepScroll:false});
     case 'report':return reportView(b.dataset.id);
     case 'add-student':return studentSheet();
     case 'edit-student':return studentSheet(b.dataset.sid);
@@ -918,7 +918,7 @@ function halaqaSheet(id){
   };
   if(h)confirmBtn($('#h-del',el),'اضغط مرة أخرى لحذف الحلقة وطلابها',()=>{
     S.halaqat=S.halaqat.filter(x=>x.id!==h.id);persist();closeTop();
-    UI.screen='halaqat';UI.hid=null;render();toast('تم حذف الحلقة');
+    UI.screen=SUP?'sup':'halaqat';UI.hid=null;render();toast('تم حذف الحلقة');
   });
   setTimeout(()=>{if(!h)$('#h-name',el).focus()},60);
 }
@@ -1839,7 +1839,7 @@ function pointsView(hid){
       <div class="card"><b>${lab}</b><div class="note" style="margin-top:4px">مجموع نقاط الحلقة: ${ptsTxt(sum)}</div>
         <div class="note" style="margin-top:4px">التسميع: بلا أخطاء 3 نقاط · بخطأ واحد نقطتان · بتقدير ممتاز نقطة · مراجعة أمس والمراجعة العامة نقطة · الاختبار بتقدير ممتاز 5 نقاط · الحضور اليومي نقطة · الشماغ نقطة · المبادرات والضيافة نقطة · إلقاء كلمة 3 نقاط</div></div>
       ${PS.p==='day'?`<div class="daypick"><button class="btn sm" type="button" data-dd="-1" aria-label="اليوم السابق">${I.back}</button><input type="date" id="pt-d" class="inp" value="${PS.d}"><button class="btn sm" type="button" data-dd="1" aria-label="اليوم التالي"><span style="transform:scaleX(-1);display:grid">${I.back}</span></button></div>`:''}
-      ${SUP?'':`<button class="btn pri block" type="button" data-site>${I.up}${PS.p==='day'?'رفع نقاط هذا اليوم إلى الموقع':'رفع النقاط إلى الموقع'}</button>`}
+      <button class="btn pri block" type="button" data-site>${I.up}${PS.p==='day'?'رفع نقاط هذا اليوم إلى الموقع':'رفع النقاط إلى الموقع'}</button>
       ${rows.length?rows.map(r=>`<article class="pt-row">
         <div class="pt-top"><span class="pt-rk${r.rk<=3&&r.tot>0?' r'+r.rk:''}">${r.rk}</span><b>${esc(r.st.name)}</b><span class="pt-tot">${r.tot}<small>نقطة</small></span></div>
         <div class="pt-by">${PT_ORDER.filter(k=>r.by[k]).map(k=>`<span>${PT_LAB[k]} <b>${r.by[k]}</b></span>`).join('')||'<span>لا نقاط بعد</span>'}</div>
@@ -1904,12 +1904,12 @@ function examSheet(){
 }
 
 /* ================= cloud: teacher link + supervisor ================= */
-const HQ_LS='halaqat-hq-v1',SUP_LS='halaqat-sup-v1';
+const HQ_LS='halaqat-hq-v1',SUP_LS='halaqat-sup-v1',SUPQ_LS='halaqat-supq-v1';
 const lsGet=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 let HQ=lsGet(HQ_LS,null);               // {code,name,at,dirty,bad}  (المعلم)
 let SUP=false;                          // وضع المشرف
-let SU={tab:'att',date:today(),data:null,marks:{},pw:'',err:''};
+let SU={tab:'att',date:today(),data:null,marks:{},pw:'',err:'',base:{},q:[],addTid:null};
 async function hq(body){
   let r;
   try{r=await fetch('/api/hq',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})}
@@ -1921,22 +1921,119 @@ async function hq(body){
 const ago=ms=>{if(!ms)return'لم يزامن بعد';const m=Math.round((Date.now()-ms)/60000);return m<1?'الآن':m<60?'قبل '+m+' دقيقة':m<1440?'قبل '+Math.round(m/60)+' ساعة':'قبل '+Math.round(m/1440)+' يوم'};
 const dayFull=k=>dateTxt(k)+' '+fromKey(k).getFullYear();
 
+
+/* ---- تعديلات المشرف: تُحوَّل إلى عمليات صغيرة تصل المعلم عند اتصاله ---- */
+const BADK=new Set(['__proto__','constructor','prototype']);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const sameJ=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function applyH(h,op){
+  if(op.t==='adds'){if(op.s&&!h.students.some(x=>x.id===op.s.id))h.students.push(op.s);return}
+  if(op.t==='dels'){h.students=h.students.filter(x=>x.id!==op.sid);return}
+  const p=op.p;if(!Array.isArray(p)||!p.length||p.some(k=>typeof k!=='string'||BADK.has(k)))return;
+  let base=h,rest=p;
+  if(p[0]==='students'){base=h.students.find(x=>x.id===p[1]);rest=p.slice(2);if(!base||!rest.length)return}
+  let o=base;
+  for(let i=0;i<rest.length-1;i++){const k=rest[i];if(o[k]==null||typeof o[k]!=='object'){if(op.t!=='set')return;o[k]={}}o=o[k]}
+  const last=rest[rest.length-1];
+  if(op.t==='set')o[last]=op.v;else delete o[last];
+  if(op.t==='del'&&rest[0]==='rec'&&rest.length===3){const d=base.rec&&base.rec[rest[1]];if(d&&!Object.keys(d).length)delete base.rec[rest[1]]}
+}
+const cleanH=h=>{const c=clone(h);delete c.tname;delete c.tid;return c};
+function diffH(a,b){
+  const ops=[],hid=b.id,put=(p,x,y)=>{if(sameJ(x,y))return;ops.push(y===undefined?{t:'del',hid,p}:{t:'set',hid,p,v:y})};
+  const hk=new Set([...Object.keys(a),...Object.keys(b)]);
+  ['id','students','off','ex','tname','tid'].forEach(k=>hk.delete(k));
+  hk.forEach(k=>put([k],a[k],b[k]));
+  for(const m of ['off','ex']){const x=a[m]||{},y=b[m]||{};new Set([...Object.keys(x),...Object.keys(y)]).forEach(k=>put([m,k],x[k],y[k]))}
+  const am=new Map(a.students.map(x=>[x.id,x])),bm=new Map(b.students.map(x=>[x.id,x]));
+  for(const [id,x] of am)if(!bm.has(id))ops.push({t:'dels',hid,sid:id});
+  for(const [id,y] of bm){
+    const x=am.get(id);
+    if(!x){ops.push({t:'adds',hid,s:clone(y)});continue}
+    const fk=new Set([...Object.keys(x),...Object.keys(y)]);fk.delete('id');fk.delete('rec');
+    fk.forEach(k=>put(['students',id,k],x[k],y[k]));
+    const xr=x.rec||{},yr=y.rec||{};
+    new Set([...Object.keys(xr),...Object.keys(yr)]).forEach(d=>{
+      const xd=xr[d]||{},yd=yr[d]||{};
+      new Set([...Object.keys(xd),...Object.keys(yd)]).forEach(k=>put(['students',id,'rec',d,k],xd[k],yd[k]));
+    });
+  }
+  return ops;
+}
+let supT=null,supBusy=false;
+function supStore(){
+  if(!SU.data)return;
+  SU.data.teachers.forEach(t=>{t.halaqat=S.halaqat.filter(h=>h.tid===t.id)});
+  lsSet(SUP_LS,{pw:SU.pw,data:SU.data});lsSet(SUPQ_LS,SU.q||[]);
+}
+function supPersist(){
+  const ops=[],seen=new Set();
+  S.halaqat.forEach(h=>{
+    seen.add(h.id);const b=SU.base[h.id];
+    if(!b){
+      if(!h.tid){const t=SU.data.teachers.find(x=>x.id===SU.addTid)||SU.data.teachers[0];if(!t)return;h.tid=t.id;h.tname=t.name}
+      ops.push({t:'addh',tid:h.tid,hid:h.id,h:cleanH(h)});
+    }else diffH(b.h,cleanH(h)).forEach(o=>{o.tid=h.tid;ops.push(o)});
+    SU.base[h.id]={tid:h.tid,h:cleanH(h)};
+  });
+  Object.keys(SU.base).forEach(id=>{if(!seen.has(id)){ops.push({t:'delh',tid:SU.base[id].tid,hid:id});delete SU.base[id]}});
+  if(ops.length){SU.q.push(...ops);supStore();clearTimeout(supT);supT=setTimeout(supFlush,900);setSync('saving')}
+}
+async function supFlush(){
+  if(supBusy||!SU.pw||!SU.q.length)return !SU.q.length;
+  if(navigator.onLine===false){setSync('local');return false}
+  supBusy=true;
+  try{
+    while(SU.q.length){
+      const chunk=SU.q.slice(0,300);
+      await hq({a:'edit',pw:SU.pw,ops:chunk});
+      SU.q.splice(0,chunk.length);supStore();
+    }
+    setSync('ok');return true;
+  }catch(e){setSync('local');return false}
+  finally{supBusy=false}
+}
+addEventListener('online',()=>{if(SUP)supFlush()});
+setInterval(()=>{if(SUP&&SU.q.length)supFlush()},30000);
+
 /* ---- teacher: auto push ---- */
 let hqT=null,hqBusy=false;
 function hqMark(){if(!HQ||!HQ.code||SUP)return;HQ.dirty=1;lsSet(HQ_LS,HQ);clearTimeout(hqT);hqT=setTimeout(()=>hqPush(),4000)}
+function applyRemote(op){
+  if(op.t==='addh'){if(!getH(op.hid)&&op.h)S.halaqat.push(op.h);return}
+  if(op.t==='delh'){S.halaqat=S.halaqat.filter(h=>h.id!==op.hid);if(UI.hid===op.hid){UI.screen='halaqat';UI.hid=null;UI.open=null}return}
+  const h=getH(op.hid);if(h)applyH(h,op);
+}
+/* يسحب تعديلات المشرف ويطبّقها على حلقات المعلم */
+async function hqPull(){
+  const j=await hq({a:'pull',code:HQ.code});
+  const ops=(j.ops||[]).filter(o=>o.id>(HQ.ack||0)).sort((a,b)=>a.id-b.id);
+  if(!ops.length)return false;
+  ops.forEach(applyRemote);HQ.ack=ops[ops.length-1].id;lsSet(HQ_LS,HQ);
+  persist();render();toast('وصلت تعديلات من المشرف');
+  return true;
+}
 async function hqPush(force){
   if(!HQ||!HQ.code||SUP||hqBusy)return false;
-  if(!HQ.dirty&&!force)return true;
   if(navigator.onLine===false)return false;
-  hqBusy=true;const rev=S.rev;
+  hqBusy=true;
   try{
-    const j=await hq({a:'sync',code:HQ.code,halaqat:S.halaqat});
+    await hqPull();
+    if(!HQ.dirty&&!force)return true;
+    const rev=S.rev;
+    const j=await hq({a:'sync',code:HQ.code,halaqat:S.halaqat,ack:HQ.ack||0});
     if(S.rev===rev)HQ.dirty=0;HQ.at=j.at;HQ.bad=0;lsSet(HQ_LS,HQ);return true;
   }catch(e){if(e.status===401){HQ.bad=1;lsSet(HQ_LS,HQ)}return false}
   finally{hqBusy=false}
 }
+/* فحص دوري لتعديلات المشرف (لا يعمل أثناء الكتابة في خانة) */
+setInterval(()=>{
+  if(!HQ||!HQ.code||SUP||document.visibilityState!=='visible')return;
+  const ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
+  hqPush();
+},45000);
 addEventListener('online',()=>hqPush());
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')hqPush()});
+document.addEventListener('visibilitychange',()=>{hqPush()});
 
 function hqSheet(){
   const el=sheet('الربط مع الإدارة','ليرى المشرف حلقتك ويتابع الغياب','','');
@@ -1975,9 +2072,11 @@ function supSetData(D){
   SU.data=D;
   S={rev:0,halaqat:[]};
   D.teachers.forEach(t=>(t.halaqat||[]).forEach(h=>{h.tname=t.name;h.tid=t.id;h.off=h.off||{};h.students=h.students||[];S.halaqat.push(h)}));
+  SU.base={};S.halaqat.forEach(h=>{SU.base[h.id]={tid:h.tid,h:cleanH(h)}});
   lsSet(SUP_LS,{pw:SU.pw,data:D});
 }
 async function supLoad(){
+  if(SU.q.length){await supFlush();if(SU.q.length)throw new Error('توجد تعديلات لم تُرسل بعد، تحقق من الإنترنت.')}
   const [D,A]=await Promise.all([hq({a:'list',pw:SU.pw}),hq({a:'attget',pw:SU.pw,date:SU.date})]);
   supSetData(D);SU.marks=A.marks||{};SU.err='';
 }
@@ -1986,9 +2085,10 @@ function enterSup(){
   $('#splash').hidden=true;$('#app').hidden=false;window.scrollTo(0,0);render({keepScroll:false});
 }
 function exitSup(){
+  if(SU.q.length)lsSet(SUPQ_LS,SU.q);
   SUP=false;try{localStorage.removeItem(SUP_LS)}catch(e){}
   const o=lsGet(LS,null);S=o&&Array.isArray(o.halaqat)?o:{rev:0,halaqat:[]};
-  SU={tab:'att',date:today(),data:null,marks:{},pw:'',err:''};
+  SU={tab:'att',date:today(),data:null,marks:{},pw:'',err:'',base:{},q:[],addTid:null};
   UI.screen='halaqat';closeTop();while(layers.children.length)closeTop();render({keepScroll:false});
 }
 function supLoginSheet(){
@@ -1996,7 +2096,7 @@ function supLoginSheet(){
   const go=async()=>{
     const pw=$('#sl-p',el).value;if(!pw)return;
     const b=$('#sl-go',el);b.disabled=true;$('#sl-m',el).textContent='جارٍ الدخول…';
-    SU.pw=pw;
+    SU.pw=pw;SU.q=lsGet(SUPQ_LS,[]);
     try{SU.date=today();await supLoad();closeTop();enterSup()}
     catch(e){SU.pw='';$('#sl-m',el).textContent=e.message;b.disabled=false}
   };
@@ -2005,7 +2105,7 @@ function supLoginSheet(){
 async function supStart(){
   const c=lsGet(SUP_LS,null);
   if(!c||!c.pw)return supLoginSheet();
-  SU.pw=c.pw;SU.date=today();
+  SU.pw=c.pw;SU.date=today();SU.q=lsGet(SUPQ_LS,[]);
   if(c.data)supSetData(c.data);
   enterSup();
   try{await supLoad();render()}
@@ -2026,9 +2126,10 @@ function supView(){
 function supHal(hs){
   return hs.map(h=>`<article class="hcard"><div class="hcard-top"><b class="hcard-name" style="cursor:default">${esc(h.name)}</b></div>
     <div class="hcard-meta"><span class="pill">المعلم: <b>${esc(h.tname)}</b></span><span class="pill">المرحلة: <b>${esc(h.stage||'')}</b></span><span class="pill">الطلاب: <b>${h.students.length}</b></span></div>
-    <div class="hcard-meta"><button class="btn soft sm" type="button" data-act="report" data-id="${h.id}">${I.chart}التقرير الأسبوعي</button><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button></div>
+    <div class="hcard-meta"><button class="btn soft sm" type="button" data-act="report" data-id="${h.id}">${I.chart}التقرير الأسبوعي</button><button class="btn soft sm" type="button" data-act="points" data-id="${h.id}">${I.star}النقاط</button><button class="btn soft sm" type="button" data-act="edit-halaqa" data-id="${h.id}">${I.edit}تعديل الحلقة</button></div>
+    <button class="btn pri block" type="button" data-act="open-halaqa" data-id="${h.id}">فتح الحلقة وتسجيل التسميع</button>
     <button class="btn wa block" type="button" data-act="sup-parents" data-id="${h.id}">${I.wa}إرسال تقارير الطلاب لأولياء الأمور</button></article>`).join('')
-    +`<p class="note">آخر مزامنة: ${SU.data.teachers.map(t=>esc(t.name)+' — '+ago(t.at)).join(' · ')}</p>`;
+    +`<button class="btn soft block" type="button" data-act="sup-addh">${I.plus}إضافة حلقة لمعلم</button><p class="note">آخر مزامنة: ${SU.data.teachers.map(t=>esc(t.name)+' — '+ago(t.at)).join(' · ')}</p>`;
 }
 function supAtt(hs){
   const k=SU.date,all=[];hs.forEach(h=>h.students.forEach(st=>all.push([h,st])));
@@ -2141,6 +2242,13 @@ $('#app').addEventListener('click',async e=>{
     }
     case 'sup-wa-all':return supWaAll();
     case 'sup-parents':return supParents(b.dataset.id);
+    case 'sup-addh':{
+      const ts=SU.data.teachers;if(!ts.length){toast('أضف معلماً أولاً من الإعدادات');return}
+      if(ts.length===1){SU.addTid=ts[0].id;return halaqaSheet()}
+      const el=sheet('إضافة حلقة','اختر المعلم صاحب الحلقة',ts.map(t=>`<button class="btn block" type="button" data-pt="${t.id}" style="margin-bottom:8px">${esc(t.name)}</button>`).join(''),'');
+      el.addEventListener('click',ev=>{const x=ev.target.closest('[data-pt]');if(!x)return;SU.addTid=x.dataset.pt;closeTop();halaqaSheet()});
+      return;
+    }
   }
 });
 document.addEventListener('change',e=>{if(e.target.id==='su-d'&&e.target.value)supGoto(e.target.value)});

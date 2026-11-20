@@ -25,6 +25,29 @@ const safeEq = (a, b) => crypto.timingSafeEqual(Buffer.from(sha(a), 'hex'), Buff
 const idOk = (s) => typeof s === 'string' && /^[A-Za-z0-9_-]{1,48}$/.test(s);
 const dateOk = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const MAX_HALAQA = 900 * 1024;
+const BAD = new Set(['__proto__', 'constructor', 'prototype']);
+
+// تطبيق تعديل واحد على حلقة (نفس المنطق الموجود في التطبيق)
+function applyH(h, op) {
+  if (op.t === 'adds') { if (op.s && idOk(op.s.id) && !h.students.some((x) => x.id === op.s.id)) h.students.push(op.s); return; }
+  if (op.t === 'dels') { h.students = h.students.filter((x) => x.id !== op.sid); return; }
+  const p = op.p;
+  if (!Array.isArray(p) || !p.length || p.length > 6 || p.some((k) => typeof k !== 'string' || !k || k.length > 64 || BAD.has(k))) return;
+  let base = h, rest = p;
+  if (p[0] === 'students') { base = h.students.find((x) => x.id === p[1]); rest = p.slice(2); if (!base || !rest.length) return; }
+  let o = base;
+  for (let i = 0; i < rest.length - 1; i++) {
+    const k = rest[i];
+    if (o[k] == null || typeof o[k] !== 'object') { if (op.t !== 'set') return; o[k] = {}; }
+    o = o[k];
+  }
+  const last = rest[rest.length - 1];
+  if (op.t === 'set') o[last] = op.v; else delete o[last];
+  if (op.t === 'del' && rest[0] === 'rec' && rest.length === 3) {
+    const d = base.rec && base.rec[rest[1]];
+    if (d && !Object.keys(d).length) delete base.rec[rest[1]];
+  }
+}
 const DEFAULT_MSG = 'نود إخطاركم بغياب ابنكم اليوم الموافق {التاريخ}، شاكرين لكم حرصكم وتعاونكم.\nإدارة حلقات أبوبكر الصديق';
 
 function newCode() {
@@ -69,10 +92,17 @@ export default async function handler(req, res) {
     const a = b.a;
 
     /* ---------- المعلم ---------- */
-    if (a === 'ping' || a === 'sync') {
+    if (a === 'ping' || a === 'sync' || a === 'pull') {
       const t = await teacherOf(b.code);
       if (!t) { await failed(ip); return res.status(401).json({ error: 'الرمز غير صحيح.' }); }
       if (a === 'ping') return res.json({ ok: true, name: t.name });
+      if (a === 'pull') {
+        const all = (await cmd(['HGETALL', 'hq:ops:' + t.id])) || [];
+        const ops = [];
+        for (let i = 0; i < all.length; i += 2) { const o = JSON.parse(all[i + 1]); o.id = Number(all[i]); ops.push(o); }
+        ops.sort((x, y) => x.id - y.id);
+        return res.json({ ok: true, ops });
+      }
       const hs = Array.isArray(b.halaqat) ? b.halaqat : null;
       if (!hs || hs.length > 40) return res.status(400).json({ error: 'بيانات غير صالحة.' });
       const cmds = [];
@@ -89,6 +119,11 @@ export default async function handler(req, res) {
       const old = (await cmd(['SMEMBERS', 'hq:th:' + t.id])) || [];
       for (const o of old) if (!ids.includes(o)) { cmds.push(['DEL', 'hq:h:' + t.id + ':' + o]); cmds.push(['SREM', 'hq:th:' + t.id, o]); }
       cmds.push(['HSET', 'hq:last', t.id, String(at)]);
+      const ack = Number(b.ack) || 0;
+      if (ack > 0) {
+        const keys = (await cmd(['HGETALL', 'hq:ops:' + t.id])) || [];
+        for (let i = 0; i < keys.length; i += 2) if (Number(keys[i]) <= ack) cmds.push(['HDEL', 'hq:ops:' + t.id, keys[i]]);
+      }
       await pipe(cmds);
       return res.json({ ok: true, at });
     }
@@ -131,6 +166,41 @@ export default async function handler(req, res) {
       const msg = String(b.msg || '').slice(0, 600);
       await cmd(msg ? ['SET', 'hq:msg', msg] : ['DEL', 'hq:msg']);
       return res.json({ ok: true, msg: msg || DEFAULT_MSG });
+    }
+    if (a === 'edit') {
+      const ops = Array.isArray(b.ops) ? b.ops : null;
+      if (!ops || ops.length > 400) return res.status(400).json({ error: 'بيانات غير صالحة.' });
+      const codes = (await cmd(['HGETALL', 'hq:codes'])) || [];
+      const tids = new Set();
+      for (let i = 0; i < codes.length; i += 2) tids.add(JSON.parse(codes[i + 1]).id);
+      const cache = new Map(); // tid:hid -> {h,changed}
+      const cmds = [], log = [];
+      const load = async (tid, hid) => {
+        const k = tid + ':' + hid;
+        if (!cache.has(k)) { const v = await cmd(['GET', 'hq:h:' + k]); cache.set(k, { h: v ? JSON.parse(v).h : null, changed: false, del: false }); }
+        return cache.get(k);
+      };
+      for (const op of ops) {
+        if (!op || !tids.has(op.tid) || !idOk(op.hid) || !['set', 'del', 'adds', 'dels', 'addh', 'delh'].includes(op.t)) continue;
+        if (JSON.stringify(op).length > MAX_HALAQA) continue;
+        const e = await load(op.tid, op.hid);
+        if (op.t === 'addh') {
+          if (!op.h || typeof op.h.name !== 'string' || !Array.isArray(op.h.students) || op.h.id !== op.hid) continue;
+          if (!e.h) { e.h = op.h; e.changed = true; e.del = false; cmds.push(['SADD', 'hq:th:' + op.tid, op.hid]); }
+        } else if (op.t === 'delh') {
+          if (e.h) { e.h = null; e.del = true; cmds.push(['DEL', 'hq:h:' + op.tid + ':' + op.hid], ['SREM', 'hq:th:' + op.tid, op.hid]); }
+        } else if (e.h) { applyH(e.h, op); e.changed = true; }
+        log.push(op);
+      }
+      const at = Date.now();
+      for (const [k, e] of cache) if (e.changed && e.h) cmds.push(['SET', 'hq:h:' + k, JSON.stringify({ at, h: e.h })]);
+      // سجل التعديلات الذي سيسحبه المعلم عند اتصاله
+      for (const op of log) {
+        const id = await cmd(['INCR', 'hq:opseq:' + op.tid]);
+        cmds.push(['HSET', 'hq:ops:' + op.tid, String(id), JSON.stringify(op)]);
+      }
+      if (cmds.length) await pipe(cmds);
+      return res.json({ ok: true, n: log.length });
     }
     if (a === 'attget') {
       if (!dateOk(b.date)) return res.status(400).json({ error: 'date' });
