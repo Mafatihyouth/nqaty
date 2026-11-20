@@ -91,6 +91,33 @@ export default async function handler(req, res) {
     if (await blocked(ip)) return res.status(429).json({ error: 'محاولات كثيرة، انتظر قليلاً ثم أعد المحاولة.' });
     const a = b.a;
 
+    /* ---------- المعلم يفتح حلقة برمزها ---------- */
+    if (a === 'claim') {
+      const hc = String(b.hcode || '').trim().toUpperCase();
+      const pv = hc.length >= 8 && hc.length <= 40 ? await cmd(['HGET', 'hq:codes', sha(hc)]) : null;
+      const P = pv ? JSON.parse(pv) : null;
+      if (!P || !P.pending) { await failed(ip); return res.status(401).json({ error: 'رمز الحلقة غير صحيح أو سبق استخدامه.' }); }
+      const hids = (await cmd(['SMEMBERS', 'hq:th:' + P.id])) || [];
+      const hs = [];
+      if (hids.length) (await pipe(hids.map((h) => ['GET', 'hq:h:' + P.id + ':' + h]))).forEach((v) => { if (v) hs.push(JSON.parse(v).h); });
+      const T = b.code ? await teacherOf(b.code) : null;
+      const cmds = [];
+      const ops = (await cmd(['HGETALL', 'hq:ops:' + P.id])) || [];
+      for (let i = 0; i < ops.length; i += 2) cmds.push(['HDEL', 'hq:ops:' + P.id, ops[i]]);
+      let out;
+      if (T) {
+        hs.forEach((h) => cmds.push(['SET', 'hq:h:' + T.id + ':' + h.id, JSON.stringify({ at: Date.now(), h })], ['SADD', 'hq:th:' + T.id, h.id], ['DEL', 'hq:h:' + P.id + ':' + h.id]));
+        cmds.push(['DEL', 'hq:th:' + P.id], ['HDEL', 'hq:codes', sha(hc)]);
+        out = { code: null, name: T.name };
+      } else {
+        const nm = String(b.name || '').trim().slice(0, 60) || 'معلم';
+        cmds.push(['HSET', 'hq:codes', sha(hc), JSON.stringify({ id: P.id, name: nm, created: P.created })]);
+        out = { code: hc, name: nm };
+      }
+      if (cmds.length) await pipe(cmds);
+      return res.json({ ok: true, ...out, halaqat: hs });
+    }
+
     /* ---------- المعلم ---------- */
     if (a === 'ping' || a === 'sync' || a === 'pull') {
       const t = await teacherOf(b.code);
@@ -135,7 +162,7 @@ export default async function handler(req, res) {
     if (a === 'list') {
       const [codes, msg] = await pipe([['HGETALL', 'hq:codes'], ['GET', 'hq:msg']]);
       const teachers = [];
-      for (let i = 0; i < (codes || []).length; i += 2) { const t = JSON.parse(codes[i + 1]); teachers.push({ id: t.id, name: t.name, halaqat: [], at: 0 }); }
+      for (let i = 0; i < (codes || []).length; i += 2) { const t = JSON.parse(codes[i + 1]); teachers.push({ id: t.id, name: t.name, pending: !!t.pending, halaqat: [], at: 0 }); }
       for (const t of teachers) {
         const hids = (await cmd(['SMEMBERS', 'hq:th:' + t.id])) || [];
         if (!hids.length) continue;
@@ -145,11 +172,22 @@ export default async function handler(req, res) {
       return res.json({ ok: true, teachers, msg: msg || DEFAULT_MSG, now: Date.now() });
     }
     if (a === 'tadd') {
-      const name = String(b.name || '').trim().slice(0, 60);
+      const pending = !!b.pending;
+      const name = pending ? 'بلا معلم' : String(b.name || '').trim().slice(0, 60);
       if (!name) return res.status(400).json({ error: 'اكتب اسم المعلم.' });
       const code = newCode(), id = crypto.randomBytes(5).toString('hex');
-      await cmd(['HSET', 'hq:codes', sha(code), JSON.stringify({ id, name, created: Date.now() })]);
-      return res.json({ ok: true, id, name, code });
+      await cmd(['HSET', 'hq:codes', sha(code), JSON.stringify({ id, name, created: Date.now(), ...(pending ? { pending: 1 } : {}) })]);
+      return res.json({ ok: true, id, name, code, pending });
+    }
+    if (a === 'tcode') {
+      if (!idOk(b.id)) return res.status(400).json({ error: 'id' });
+      const all = (await cmd(['HGETALL', 'hq:codes'])) || [];
+      let rec = null, oldKey = null;
+      for (let i = 0; i < all.length; i += 2) { const t = JSON.parse(all[i + 1]); if (t.id === b.id) { rec = t; oldKey = all[i]; } }
+      if (!rec) return res.status(404).json({ error: 'غير موجود.' });
+      const code = newCode();
+      await pipe([['HDEL', 'hq:codes', oldKey], ['HSET', 'hq:codes', sha(code), JSON.stringify(rec)]]);
+      return res.json({ ok: true, id: rec.id, name: rec.name, code });
     }
     if (a === 'tdel') {
       if (!idOk(b.id)) return res.status(400).json({ error: 'id' });

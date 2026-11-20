@@ -895,9 +895,21 @@ function backupSheet(){
 }
 
 /* ================= halaqa sheet ================= */
+async function claimHalaqa(hcode,name){
+  const j=await hq({a:'claim',hcode,code:HQ&&HQ.code||'',name});
+  if(!HQ||!HQ.code){HQ={code:j.code,name:j.name,at:0,dirty:1,ack:0};lsSet(HQ_LS,HQ)}
+  let first=null;
+  (j.halaqat||[]).forEach(x=>{if(!getH(x.id))S.halaqat.push(x);first=first||x.id});
+  persist();hqMark();
+  return first;
+}
 function halaqaSheet(id){
   const h=id?getH(id):null;
-  const el=sheet(h?'تعديل الحلقة':'إضافة حلقة','',`
+  const el=sheet(h?'تعديل الحلقة':'إضافة حلقة','',(h||SUP?'':`<div class="card" id="cl-box"><b>عندك رمز حلقة من المشرف؟</b>
+      <div class="fld" style="margin-top:8px"><input id="cl-c" class="inp" dir="ltr" style="text-align:center;letter-spacing:1px" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" aria-label="رمز الحلقة"></div>
+      ${HQ&&HQ.code?'':'<div class="fld"><input id="cl-n" class="inp" placeholder="اسمك (يظهر للمشرف)" maxlength="60" aria-label="اسمك"></div>'}
+      <button class="btn pri block" type="button" id="cl-go">فتح الحلقة</button><p class="msg" id="cl-m" role="alert"></p></div>
+      <p class="note" style="margin:10px 0">أو أنشئ حلقة جديدة بنفسك:</p>`)+`
     <div class="fld"><label for="h-name">اسم الحلقة</label><input id="h-name" class="inp" type="text" maxlength="60" value="${esc(h?h.name:'')}" placeholder="مثال: حلقة أبي بكر الصديق" autocomplete="off"></div>
     <div class="fld"><label for="h-stage">المرحلة</label><select id="h-stage" class="sel">${stageOpts(HSTAGES,h?h.stage:'ابتدائي')}</select></div>
     <div class="fld"><span class="lbl">أيام الحلقة في الأسبوع</span><div class="wdays" id="h-days">${[0,1,2,3,4,5,6].map(i=>`<button type="button" class="wd${schedOf(h||{})[i]?' on':''}" data-wd="${i}" aria-pressed="${!!schedOf(h||{})[i]}">${WD_SHORT[i]}</button>`).join('')}</div><span class="note">يُحسب مقرر التقرير الأسبوعي لهذه الأيام فقط. يوم الخميس للحضور فقط (3 نقاط) بلا تسميع، ويظهر في التقرير حضوراً وغياباً ولا يدخل في المقرر.</span></div>
@@ -905,6 +917,17 @@ function halaqaSheet(id){
     <div class="fld"><label for="h-sup">رقم واتساب المشرف (اختياري)</label><input id="h-sup" class="inp" type="tel" inputmode="tel" dir="ltr" style="text-align:right" value="${esc(h&&h.sup?h.sup:'')}" placeholder="مثال: 0501234567 أو 966501234567" autocomplete="off"><span class="note">يُرسَل إليه التقرير العام للأسبوع بضغطة زر.</span></div>
     <p class="msg" id="h-msg" role="alert"></p>`,
     `<button class="btn pri block" type="button" id="h-save">${h?'حفظ التعديل':'إضافة الحلقة'}</button>${h?'<button class="btn danger block" type="button" id="h-del">حذف الحلقة</button>':''}`);
+  const clGo=$('#cl-go',el);
+  if(clGo)clGo.onclick=async()=>{
+    const code=$('#cl-c',el).value.trim().toUpperCase(),nm=$('#cl-n',el)?$('#cl-n',el).value.trim():'',m=$('#cl-m',el);
+    if(code.length<8){m.textContent='اكتب رمز الحلقة كاملاً.';return}
+    if($('#cl-n',el)&&!nm){m.textContent='اكتب اسمك.';return}
+    clGo.disabled=true;m.textContent='جارٍ فتح الحلقة…';
+    try{const hid=await claimHalaqa(code,nm);closeTop();
+      if(hid){UI.screen='halaqa';UI.hid=hid;UI.open=null;UI.sel=today()}
+      render({keepScroll:false,center:true});toast('تمت إضافة الحلقة')}
+    catch(e){m.textContent=e.message;clGo.disabled=false}
+  };
   $('#h-days',el).addEventListener('click',e=>{const b=e.target.closest('.wd');if(!b)return;b.classList.toggle('on');b.setAttribute('aria-pressed',b.classList.contains('on'))});
   $('#h-save',el).onclick=()=>{
     const name=$('#h-name',el).value.trim();
@@ -2120,7 +2143,7 @@ function supView(){
   const hs=S.halaqat;
   const tabs=`<div class="seg" style="grid-template-columns:repeat(2,1fr)" role="tablist">${[['att','تحضير أولياء الأمور'],['hal','الحلقات والتقارير']].map(([k,v])=>`<button type="button" role="tab" data-act="sup-tab" data-t="${k}" aria-selected="${SU.tab===k}">${v}</button>`).join('')}</div>`;
   const err=SU.err?`<p class="note" style="color:#B3261E">${esc(SU.err)}</p>`:'';
-  if(!hs.length)return head+`<main>${tabs}${err}<div class="empty"><h3>لا توجد حلقات مربوطة بعد</h3><p>من «الإعدادات» أضف المعلمين وأعطِ كل معلم رمزه، وعندما يربط حلقته تظهر هنا.</p></div></main>`;
+  if(!hs.length)return head+`<main>${tabs}${err}<div class="empty"><h3>لا توجد حلقات مربوطة بعد</h3><p>من «الإعدادات» أضف المعلمين وأعطِ كل معلم رمزه، وعندما يربط حلقته تظهر هنا. أو أنشئ حلقة بنفسك.</p><button class="btn pri" type="button" data-act="sup-addh">إضافة حلقة</button></div></main>`;
   return head+`<main>${tabs}${err}${SU.tab==='att'?supAtt(hs):supHal(hs)}</main>`;
 }
 function supHal(hs){
@@ -2193,7 +2216,7 @@ function supSettings(){
     <div class="fld"><label for="ss-m">نص رسالة الغياب (اكتب {التاريخ} مكان تاريخ اليوم)</label><textarea id="ss-m" class="inp" rows="5" style="height:auto;padding:12px">${esc(D.msg)}</textarea></div>
     <button class="btn block" type="button" id="ss-sv">حفظ نص الرسالة</button>
     <div class="fld" style="margin-top:14px"><span class="lbl">المعلمون</span></div>
-    ${D.teachers.map(t=>`<div class="wa-row"><div><b>${esc(t.name)}</b><small style="direction:rtl">${(t.halaqat||[]).length} حلقة · ${ago(t.at)}</small></div><button class="btn danger sm" type="button" data-td="${t.id}">حذف</button></div>`).join('')||'<p class="note">لا يوجد معلمون بعد.</p>'}
+    ${D.teachers.map(t=>`<div class="wa-row"><div><b>${esc(t.name)}${t.pending?' (حلقة تنتظر معلماً)':''}</b><small style="direction:rtl">${(t.halaqat||[]).length} حلقة${t.pending?'':' · '+ago(t.at)}</small></div><span><button class="btn sm" type="button" data-tc="${t.id}">رمز جديد</button> <button class="btn danger sm" type="button" data-td="${t.id}">حذف</button></span></div>`).join('')||'<p class="note">لا يوجد معلمون بعد.</p>'}
     ${code?`<div class="card" style="margin-top:10px"><b>رمز ${esc(code.name)}</b><div dir="ltr" style="font-size:24px;font-weight:800;letter-spacing:2px;text-align:center;margin:8px 0">${code.code}</div><div class="note">يظهر هذا الرمز مرة واحدة فقط، أرسله للمعلم الآن.</div><button class="btn block" type="button" id="ss-cp" style="margin-top:8px">نسخ الرمز</button></div>`:''}
     <div class="fld" style="margin-top:10px"><label for="ss-t">إضافة معلم</label><input id="ss-t" class="inp" placeholder="اسم المعلم" maxlength="60"></div>
     <button class="btn pri block" type="button" id="ss-add">إنشاء رمز للمعلم</button>
@@ -2204,6 +2227,7 @@ function supSettings(){
     $('#ss-sv',body).onclick=async()=>{try{const j=await hq({a:'cfgset',pw:SU.pw,msg:$('#ss-m',body).value});D.msg=j.msg;lsSet(SUP_LS,{pw:SU.pw,data:D});$('#ss-m',body).value=j.msg;toast('تم الحفظ')}catch(e){m(e.message)}};
     $('#ss-add',body).onclick=async()=>{const n=$('#ss-t',body).value.trim();if(!n)return m('اكتب اسم المعلم.');
       try{const j=await hq({a:'tadd',pw:SU.pw,name:n});D.teachers.push({id:j.id,name:j.name,halaqat:[],at:0});lsSet(SUP_LS,{pw:SU.pw,data:D});draw({name:j.name,code:j.code})}catch(e){m(e.message)}};
+    $$('[data-tc]',body).forEach(b=>b.onclick=async()=>{try{const j=await hq({a:'tcode',pw:SU.pw,id:b.dataset.tc});draw({name:j.name,code:j.code})}catch(e){m(e.message)}});
     const cp=$('#ss-cp',body);if(cp)cp.onclick=async()=>{try{await navigator.clipboard.writeText(code.code);toast('تم النسخ')}catch(e){toast('انسخ الرمز يدوياً')}};
     $$('[data-td]',body).forEach(b=>confirmBtn(b,'تأكيد الحذف',async()=>{
       try{await hq({a:'tdel',pw:SU.pw,id:b.dataset.td});D.teachers=D.teachers.filter(t=>t.id!==b.dataset.td);supSetData(D);draw();render()}catch(e){m(e.message)}}));
@@ -2243,10 +2267,21 @@ $('#app').addEventListener('click',async e=>{
     case 'sup-wa-all':return supWaAll();
     case 'sup-parents':return supParents(b.dataset.id);
     case 'sup-addh':{
-      const ts=SU.data.teachers;if(!ts.length){toast('أضف معلماً أولاً من الإعدادات');return}
-      if(ts.length===1){SU.addTid=ts[0].id;return halaqaSheet()}
-      const el=sheet('إضافة حلقة','اختر المعلم صاحب الحلقة',ts.map(t=>`<button class="btn block" type="button" data-pt="${t.id}" style="margin-bottom:8px">${esc(t.name)}</button>`).join(''),'');
-      el.addEventListener('click',ev=>{const x=ev.target.closest('[data-pt]');if(!x)return;SU.addTid=x.dataset.pt;closeTop();halaqaSheet()});
+      const ts=SU.data.teachers.filter(t=>!t.pending);
+      const el=sheet('إضافة حلقة','اختر صاحب الحلقة',ts.map(t=>`<button class="btn block" type="button" data-pt="${t.id}" style="margin-bottom:8px">${esc(t.name)}</button>`).join('')+`<button class="btn pri block" type="button" data-none>${I.plus}بدون معلم (يفتحها المعلم لاحقاً برمز)</button><p class="msg" id="np-m" role="alert"></p>`,'');
+      el.addEventListener('click',async ev=>{
+        const x=ev.target.closest('[data-pt]');
+        if(x){SU.addTid=x.dataset.pt;closeTop();return halaqaSheet()}
+        const nb=ev.target.closest('[data-none]');if(!nb)return;
+        nb.disabled=true;
+        try{
+          const j=await hq({a:'tadd',pw:SU.pw,pending:true});
+          SU.data.teachers.push({id:j.id,name:j.name,pending:true,halaqat:[],at:0});SU.addTid=j.id;closeTop();
+          const c=sheet('رمز الحلقة','سلّمه للمعلم الذي سيستلم الحلقة',`<div class="card"><div dir="ltr" style="font-size:26px;font-weight:800;letter-spacing:2px;text-align:center;margin:6px 0">${j.code}</div><div class="note">يظهر هذا الرمز مرة واحدة فقط. يفتح المعلم تطبيقه ويضغط «إضافة حلقة» ثم يكتب الرمز، فتفتح له الحلقة. يمكنك لاحقاً إنشاء رمز جديد من الإعدادات.</div><button class="btn block" type="button" id="pc-cp" style="margin-top:8px">نسخ الرمز</button></div>`,`<button class="btn pri block" type="button" id="pc-go">متابعة وإنشاء الحلقة</button>`);
+          $('#pc-cp',c).onclick=async()=>{try{await navigator.clipboard.writeText(j.code);toast('تم النسخ')}catch(e){toast('انسخ الرمز يدوياً')}};
+          $('#pc-go',c).onclick=()=>{closeTop();halaqaSheet()};
+        }catch(er){nb.disabled=false;$('#np-m',el).textContent=er.message}
+      });
       return;
     }
   }
